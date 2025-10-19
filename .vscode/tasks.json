@@ -41,6 +41,35 @@
 			"problemMatcher": [
 				"$rustc"
 			]
+		},
+		{
+			"type": "cargo",
+			"command": "doc",
+			"args": [
+				"--no-deps"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "rust: cargo doc",
+			"presentation": {
+				"reveal": "always",
+				"clear": true
+			}
+		},
+		{
+			"type": "shell",
+			"label": "rust: cargo doc and open",
+			"command": "cargo doc --no-deps && xdg-open target/doc/syntaxfmt/index.html",
+			"group": "build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"clear": true
+			}
 		}
 	]
 }

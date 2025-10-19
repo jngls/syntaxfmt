@@ -242,8 +242,8 @@ fn parse_field_attrs(attrs: &[syn::Attribute]) -> FieldAttrs {
         Meta::Path(path) => {
             if path.is_ident("skip") {
                 field_attrs.skip = true;
-            } else if path.is_ident("indent_inc") {
-                field_attrs.indent_inc = true;
+            } else if path.is_ident("indent_region") {
+                field_attrs.indent_region = true;
             } else if path.is_ident("indent") {
                 field_attrs.indent = true;
             }
@@ -289,7 +289,7 @@ struct FieldAttrs {
     format: PrettyString,
     content: Option<syn::Expr>,
     empty_suffix: Option<String>,
-    indent_inc: bool,
+    indent_region: bool,
     indent: bool,
     skip: bool,
 }
@@ -512,7 +512,7 @@ fn generate_named_fields_fmt(
                 });
             }
 
-            if attrs.indent_inc {
+            if attrs.indent_region {
                 field_statements.push(quote! {
                     if ctx.is_pretty() {
                         ctx.inc_indent();
@@ -529,7 +529,7 @@ fn generate_named_fields_fmt(
 
             field_statements.push(format_output);
 
-            if attrs.indent_inc {
+            if attrs.indent_region {
                 field_statements.push(quote! {
                     if ctx.is_pretty() {
                         ctx.dec_indent();

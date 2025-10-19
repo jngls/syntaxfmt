@@ -9,8 +9,9 @@
 //! - **Derive macro** - for automatic implementation of formatting logic
 //! - **Dual formatting modes** - compact and pretty-printed
 //! - **Collection support** - automatic formatting for `Vec<T>`, `&[T]`, and `[T; N]` types
+//! - **Boolean and Option support** - conditional formatting for `bool` and `Option<T>` types
 //! - **Stateful formatting** - pass user defined context through the formatting process
-//! - **Custom formatters** - override default behavior with custom functions
+//! - **Custom formatters** - override default behavior with custom functions or by explicitly implementing `SyntaxFmt`
 //! - **Flexible attributes** - control delimiters, indentation, and format strings
 //!
 //! # Cargo Features
@@ -24,9 +25,8 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! struct FunctionCall<'src> {
-//!     #[syntax(format = "{content}(")]
 //!     name: &'src str,
-//!     #[syntax(format = "{content})", pretty_format = " {content} )")]
+//!     #[syntax(format = "({content})", pretty_format = "( {content} )")]
 //!     args: &'src str,
 //! }
 //!
@@ -46,19 +46,20 @@
 //!
 //! ## Type-level attributes
 //!
-//! - `#[syntax(delim = ", ")]` - Delimiter between items (default: `","`)
+//! - `#[syntax(delim = ", ")]` - Delimiter between items of this type, used by Vec and slice implementations (default: `","`)
 //! - `#[syntax(pretty_delim = ",\n")]` - Delimiter in pretty mode (default: `", "`)
-//! - `#[syntax(format = "prefix{content}suffix")]` - Outer format wrapper
-//! - `#[syntax(state_bound = "MyTrait")]` - Add trait bound for exposing functionality to custom formatters
+//! - `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the whole type (default: `"{content}"`)
+//! - `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the whole type (default: `"{content}"`)
+//! - `#[syntax(state_bound = "MyTrait")]` - Add trait bound for exposing functionality to custom formatter functions
 //!
 //! ## Field-level attributes
 //!
-//! - `#[syntax(format = "{content}")]` - Format string with `{content}` placeholder
-//! - `#[syntax(pretty_format = "{content}")]` - Format string for pretty mode
-//! - `#[syntax(content = my_formatter)]` - Custom formatter function
-//! - `#[syntax(empty_suffix = ";")]` - Output this instead of normal formatting when field is empty
+//! - `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the field (default: `"{content}"`)
+//! - `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the field (default: `"{content}"`)
+//! - `#[syntax(content = my_formatter)]` - Custom content formatter function
+//! - `#[syntax(empty_suffix = ";")]` - Early out with this string when field is empty (for types which implement `is_empty()` function)
 //! - `#[syntax(indent)]` - Write indentation before this field (pretty mode only)
-//! - `#[syntax(indent_inc)]` - Increase indent level for this field's content
+//! - `#[syntax(indent_region)]` - Increase indent level for this field's content
 //! - `#[syntax(skip)]` - Skip this field during formatting
 //!
 //! # Examples
@@ -111,8 +112,9 @@
 //!
 //! ## Pretty printing with indentation
 //!
-//! The `indent_inc` attribute increases the indent level, and `indent` writes indentation
-//! before formatting a field in pretty mode.
+//! The `indent_region` attribute increases the indent level for a field's content, and `indent`
+//! writes indentation before formatting a field in pretty mode. The default indentation is four
+//! spaces, which can be customized using the `.indent()` builder method.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -128,7 +130,7 @@
 //!     #[syntax(
 //!         format = "{{{content}}}",
 //!         pretty_format = "{{\n{content}\n}}",
-//!         indent_inc
+//!         indent_region
 //!     )]
 //!     body: Statement<'src>,
 //! }
@@ -137,13 +139,17 @@
 //!
 //! assert_eq!(format!("{}", syntax_fmt(&(), &block)), "{return 42;}");
 //! assert_eq!(format!("{}", syntax_fmt(&(), &block).pretty()), "{\n    return 42;\n}");
+//!
+//! // Custom indentation with tabs
+//! assert_eq!(format!("{}", syntax_fmt(&(), &block).pretty().indent("\t")), "{\n\treturn 42;\n}");
 //! ```
 //!
 //! ## Using `empty_suffix` for empty collections
 //!
 //! The `empty_suffix` attribute provides early-out formatting for empty collection fields.
-//! When the field's `is_empty()` returns true, only the suffix is output instead of the
-//! normal format string. This is useful for syntax like `mod name;` vs `mod name { items }`.
+//! When the field's `is_empty()` function returns true, only the suffix is output instead
+//! of the remainder of the struct fields. This is useful for syntax like `mod name;` vs
+//! `mod name { items }`.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -227,9 +233,8 @@
 //!
 //! ## Stateful formatting with mutable state
 //!
-//! You can manually implement `SyntaxFmt` to access and modify user-provided state
-//! during formatting. This is useful for tracking counters, generating unique IDs,
-//! or updating symbol tables.
+//! You can manually implement `SyntaxFmt` or use custom formatter functions to access and
+//! modify user-provided state during formatting.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt_mut};
@@ -260,9 +265,11 @@
 //! }
 //!
 //! let mut tracker = VarTracker { next_id: 0 };
-//! let decl = VarDecl { name: "x" };
-//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl)), "let x_0 = ");
-//! assert_eq!(tracker.next_id, 1);
+//! let decl_0 = VarDecl { name: "x" };
+//! let decl_1 = VarDecl { name: "x" };
+//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl_0)), "let x_0 = ");
+//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl_0)), "let x_1 = ");
+//! assert_eq!(tracker.next_id, 2);
 //! ```
 
 use core::panic;
@@ -475,12 +482,13 @@ where
 /// Returns a [`SyntaxDisplay`] wrapper that implements `Display`, allowing it to be
 /// used with `format!`, `println!`, and other formatting macros.
 ///
-/// Chain with `.pretty()` to enable pretty printing mode.
+/// Chain with `.pretty()` to enable pretty printing mode and `.indent()` to customize
+/// the indentation string (default is four spaces).
 ///
 /// # Arguments
 ///
 /// * `state` - User-defined state to pass through the formatting process
-/// * `e` - The syntax tree to format
+/// * `elem` - The syntax tree to format
 ///
 /// # Examples
 ///
@@ -501,12 +509,12 @@ where
 #[inline]
 pub fn syntax_fmt<'s, 'e, S, E>(
     state: &'s S,
-    e: &'e E,
+    elem: &'e E,
 ) -> SyntaxDisplay<'s, 'e, S, E>
 where
     E: SyntaxFmt<S>,
 {
-    SyntaxDisplay::new(state, e)
+    SyntaxDisplay::new(state, elem)
 }
 
 /// Formats a syntax tree with mutable state.
@@ -515,12 +523,13 @@ where
 /// the state to be modified during formatting, useful for tracking generated identifiers,
 /// maintaining counters, or updating symbol tables.
 ///
-/// Chain with `.pretty()` to enable pretty printing mode.
+/// Chain with `.pretty()` to enable pretty printing mode and `.indent()` to customize
+/// the indentation string (default is four spaces).
 ///
 /// # Arguments
 ///
 /// * `state` - Mutable user-defined state to pass through the formatting process
-/// * `e` - The syntax tree to format
+/// * `elem` - The syntax tree to format
 ///
 /// # Examples
 ///
@@ -535,7 +544,7 @@ where
 ///
 /// impl SyntaxFmt<Counter> for Item {
 ///     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
-///         let count = ctx.state_mut().count;
+///         let count = ctx.state().count;
 ///         ctx.state_mut().count += 1;
 ///         write!(ctx, "item_{}", count)
 ///     }
@@ -554,12 +563,12 @@ where
 #[inline]
 pub fn syntax_fmt_mut<'s, 'e, S, E>(
     state: &'s mut S,
-    e: &'e E,
+    elem: &'e E,
 ) -> SyntaxDisplay<'s, 'e, S, E>
 where
     E: SyntaxFmt<S>,
 {
-    SyntaxDisplay::new_mut(state, e)
+    SyntaxDisplay::new_mut(state, elem)
 }
 
 /// Trait for types that can be formatted as syntax.

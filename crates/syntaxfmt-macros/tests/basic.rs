@@ -171,7 +171,7 @@ struct Module<'src> {
         format = " {{{content}}}",
         pretty_format = " {{\n{content}}}",
         empty_suffix = ";",
-        indent_inc
+        indent_region
     )]
     items: Items<'src>,
 }
@@ -247,7 +247,7 @@ struct Item<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
 struct List<'src> {
-    #[syntax(format = "[{content}]", pretty_format = "[\n{content}\n]", indent_inc)]
+    #[syntax(format = "[{content}]", pretty_format = "[\n{content}\n]", indent_region)]
     items: Vec<Item<'src>>,
 }
 
