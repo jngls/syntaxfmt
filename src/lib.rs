@@ -209,9 +209,9 @@
 //! The `content` attribute allows you to specify a custom formatting function for a field.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt};
+//! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
 //!
-//! fn quote_formatter<S>(value: &str, ctx: &mut SyntaxFmtContext<S>) -> std::fmt::Result {
+//! fn quote_formatter<S>(value: &str, ctx: &mut SyntaxFormatter<S>) -> std::fmt::Result {
 //!     write!(ctx, "\"{}\"", value)
 //! }
 //!
@@ -232,7 +232,7 @@
 //! or updating symbol tables.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt_mut};
+//! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt_mut};
 //!
 //! // State that tracks variable assignments
 //! struct VarTracker {
@@ -253,7 +253,7 @@
 //! }
 //!
 //! impl<'src> SyntaxFmt<VarTracker> for VarDecl<'src> {
-//!     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<VarTracker>) -> std::fmt::Result {
+//!     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<VarTracker>) -> std::fmt::Result {
 //!         let id = ctx.state_mut().allocate();
 //!         write!(ctx, "let {}_{} = ", self.name, id)
 //!     }
@@ -267,7 +267,8 @@
 
 use core::panic;
 use std::cell::{Ref, RefCell, RefMut};
-use std::fmt::{Arguments, Display, Formatter, Result as FmtResult};
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::ops::{Deref, DerefMut};
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
@@ -311,33 +312,36 @@ impl<'s, S> StateRef<'s, S> {
 }
 
 /// Context passed to formatting implementations, containing the formatter and formatting state.
-pub struct SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
+pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     f: &'f mut Formatter<'w>,
     state: &'sr RefCell<StateRef<'s, S>>,
     ind: usize,
     pretty: bool,
+    indent: &'static str,
 }
 
-impl<'sr, 's, 'f, 'w, S> SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
+impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>) -> Self {
+    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: &'static str) -> Self {
         Self {
             f,
             state,
             ind: 0,
             pretty: false,
+            indent,
         }
     }
 
     #[must_use]
     #[inline]
-    fn new_pretty(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>) -> Self {
+    fn new_pretty(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: &'static str) -> Self {
         Self {
             f,
             state,
             ind: 0,
             pretty: true,
+            indent,
         }
     }
 
@@ -363,22 +367,10 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
         RefMut::map(self.state.borrow_mut(), |s| s.as_mut())
     }
 
-    /// Writes formatted arguments to the output.
-    #[inline]
-    pub fn write_fmt(&mut self, args: Arguments<'_>) -> FmtResult {
-        self.f.write_fmt(args)
-    }
-
-    /// Writes a string slice to the output.
-    #[inline]
-    pub fn write_str(&mut self, s: &str) -> FmtResult {
-        self.f.write_str(s)
-    }
-
     /// Writes the current indentation to the output.
     #[inline]
-    pub fn indent(&mut self, indent: &str) -> FmtResult {
-        write!(self.f, "{}", indent.repeat(self.ind))
+    pub fn indent(&mut self) -> FmtResult {
+        write!(self.f, "{}", self.indent.repeat(self.ind))
     }
 
     /// Increases the indentation level by one.
@@ -394,6 +386,22 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
     }
 }
 
+impl<'sr, 's, 'f, 'w, S> Deref for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
+    type Target = Formatter<'w>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.f
+    }
+}
+
+impl<'sr, 's, 'f, 'w, S> DerefMut for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.f
+    }
+}
+
 /// A wrapper that implements `Display` for types implementing `SyntaxFmt`.
 pub struct SyntaxDisplay<'s, 'e, S, E>
 where
@@ -402,6 +410,7 @@ where
     state: RefCell<StateRef<'s, S>>,
     elem: &'e E,
     pretty: bool,
+    indent: &'static str,
 }
 
 impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E>
@@ -415,6 +424,7 @@ where
             state: RefCell::new(StateRef::new_ref(state)),
             elem,
             pretty: false,
+            indent: "    ",
         }
     }
 
@@ -425,6 +435,7 @@ where
             state: RefCell::new(StateRef::new_mut(state)),
             elem,
             pretty: false,
+            indent: "    ",
         }
     }
 
@@ -435,6 +446,14 @@ where
         self.pretty = true;
         self
     }
+
+    /// Set the indentation string (default is four spaces).
+    #[must_use]
+    #[inline]
+    pub fn indent(mut self, indent: &'static str) -> Self {
+        self.indent = indent;
+        self
+    }
 }
 
 impl<'s, 'e, S, E> Display for SyntaxDisplay<'s, 'e, S, E>
@@ -443,9 +462,9 @@ where
 {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let mut ctx = if self.pretty {
-            SyntaxFmtContext::new_pretty(f, &self.state)
+            SyntaxFormatter::new_pretty(f, &self.state, self.indent)
         } else {
-            SyntaxFmtContext::new(f, &self.state)
+            SyntaxFormatter::new(f, &self.state, self.indent)
         };
         self.elem.syntax_fmt(&mut ctx)
     }
@@ -506,7 +525,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt_mut};
+/// use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt_mut};
 ///
 /// struct Counter {
 ///     count: usize,
@@ -515,7 +534,7 @@ where
 /// struct Item;
 ///
 /// impl SyntaxFmt<Counter> for Item {
-///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+///     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
 ///         let count = ctx.state_mut().count;
 ///         ctx.state_mut().count += 1;
 ///         write!(ctx, "item_{}", count)
@@ -551,11 +570,8 @@ pub trait SyntaxFmt<S> {
     /// Delimiter used in pretty printing mode.
     const PRETTY_DELIM: &'static str = ", ";
 
-    /// Indentation string repeated for each indentation level.
-    const INDENT: &'static str = "    ";
-
     /// Formats this value using the given context.
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<S>) -> FmtResult;
+    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<S>) -> FmtResult;
 }
 
 /// Blanket implementation for types implementing `Display`.
@@ -563,7 +579,7 @@ impl<S, E> SyntaxFmt<S> for E
 where
     E: Display,
 {
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<S>) -> FmtResult {
+    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<S>) -> FmtResult {
         write!(ctx, "{}", *self)
     }
 }

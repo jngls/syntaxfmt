@@ -41,7 +41,7 @@ pub fn derive_syntax_fmt(input: TokenStream) -> TokenStream {
             #delim_const
             #pretty_delim_const
 
-            fn syntax_fmt(&self, ctx: &mut ::syntaxfmt::SyntaxFmtContext<__SyntaxFmtState>) -> ::std::fmt::Result {
+            fn syntax_fmt(&self, ctx: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>) -> ::std::fmt::Result {
                 #fmt_body
             }
         }
@@ -153,7 +153,7 @@ fn generate_collection_iteration(
                     write!(ctx, "{}", delim)?;
                 }
                 if ctx.is_pretty() {
-                    ctx.indent(Self::INDENT)?;
+                    ctx.indent()?;
                 }
                 e.syntax_fmt(ctx)?;
                 Ok(())
@@ -507,7 +507,7 @@ fn generate_named_fields_fmt(
             if attrs.indent {
                 field_statements.push(quote! {
                     if ctx.is_pretty() {
-                        ctx.indent(Self::INDENT)?;
+                        ctx.indent()?;
                     }
                 });
             }

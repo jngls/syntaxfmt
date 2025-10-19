@@ -1,5 +1,5 @@
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, syntax_fmt_mut, SyntaxFmt, SyntaxFmtContext};
+use syntaxfmt::{syntax_fmt, syntax_fmt_mut, SyntaxFmt, SyntaxFormatter};
 
 #[track_caller]
 fn assert_formats<State, T: SyntaxFmt<State>>(
@@ -26,7 +26,7 @@ impl<'src> Items<'src> {
 }
 
 impl<'src> SyntaxFmt<()> for Items<'src> {
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<()>) -> ::std::fmt::Result {
+    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<()>) -> ::std::fmt::Result {
         if self.is_empty() {
             return Ok(());
         }
@@ -40,7 +40,7 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
                 write!(ctx, "{}", delim)?;
             }
             if ctx.is_pretty() {
-                ctx.indent(Self::INDENT)?;
+                ctx.indent()?;
             }
             item.syntax_fmt(ctx)?;
         }
@@ -117,7 +117,7 @@ fn test_format_literal() {
 }
 
 // Custom formatters
-fn custom_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
+fn custom_formatter<State>(value: &str, ctx: &mut SyntaxFormatter<State>) -> std::fmt::Result {
     write!(ctx, "{{{}}} ", value)
 }
 
@@ -145,7 +145,7 @@ impl NameResolver for TestResolver {
     }
 }
 
-fn resolve_formatter<State: NameResolver>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
+fn resolve_formatter<State: NameResolver>(value: &str, ctx: &mut SyntaxFormatter<State>) -> std::fmt::Result {
     let resolved = ctx.state().resolve_name(value);
     write!(ctx, "{}", resolved)
 }
@@ -265,7 +265,7 @@ struct Counter {
 struct CountedItem;
 
 impl SyntaxFmt<Counter> for CountedItem {
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
         let count = ctx.state_mut().count;
         ctx.state_mut().count += 1;
         write!(ctx, "item_{}", count)
@@ -288,7 +288,7 @@ fn test_mutable_state() {
 fn test_immutable_state_panics_on_mut_access() {
     struct BadItem;
     impl SyntaxFmt<Counter> for BadItem {
-        fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+        fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
             ctx.state_mut().count += 1; // Should panic!
             Ok(())
         }
