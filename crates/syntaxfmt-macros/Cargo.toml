@@ -8,6 +8,7 @@ description = "Procedural macros for the syntaxfmt crate."
 homepage = "https://github.com/jngls/syntaxfmt"
 repository = "https://github.com/jngls/syntaxfmt"
 documentation = "https://docs.rs/syntaxfmt"
+readme = "README.md"
 categories = ["development-tools::procedural-macro-helpers"]
 keywords = ["syntax", "formatting", "derive", "macro"]
 
