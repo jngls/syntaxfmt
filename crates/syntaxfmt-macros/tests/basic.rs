@@ -15,7 +15,7 @@ fn assert_formats<State, T: SyntaxFmt<State>>(
 // Shared test types
 #[derive(SyntaxFmtDerive)]
 #[syntax(delim = ", ", pretty_delim = "")]
-struct Statement<'src>(#[syntax(format = "{content}", pretty_format = "{content}\n")] &'src str);
+struct Statement<'src>(#[syntax(pretty_format = "{content}\n")] &'src str);
 
 struct Items<'src>(Vec<Statement<'src>>);
 
@@ -189,7 +189,7 @@ fn custom_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> st
     write!(ctx, "{{{}}} ", value)
 }
 
-fn uppercase_formatter<State>(value: &&str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
+fn uppercase_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
     write!(ctx, "{}", value.to_uppercase())
 }
 
@@ -223,7 +223,7 @@ impl NameResolver for TestResolver {
     }
 }
 
-fn resolve_formatter<State: NameResolver>(value: &&str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
+fn resolve_formatter<State: NameResolver>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
     let resolved = ctx.state().resolve_name(value);
     write!(ctx, "{}", resolved)
 }
@@ -240,6 +240,40 @@ fn test_stateful_formatter() {
     let s = WithStatefulFormatter { id: "foo" };
     let resolver = TestResolver;
     assert_formats(&resolver, &s, "id: resolved_foo", "id: resolved_foo");
+}
+
+// Empty suffix test
+#[derive(SyntaxFmtDerive)]
+struct Module<'src> {
+    #[syntax(format = "mod {content}")]
+    name: &'src str,
+    #[syntax(
+        format = " {{{content}}}",
+        pretty_format = " {{\n{content}}}",
+        empty_suffix = ";",
+        indent_inc
+    )]
+    items: Items<'src>,
+}
+
+#[test]
+fn test_empty_suffix() {
+    let empty_mod = Module {
+        name: "empty",
+        items: Items(vec![]),
+    };
+    assert_formats(&(), &empty_mod, "mod empty;", "mod empty;");
+
+    let with_items = Module {
+        name: "lib",
+        items: Items(vec![Statement("fn main() {}")]),
+    };
+    assert_formats(
+        &(),
+        &with_items,
+        "mod lib {fn main() {}}",
+        "mod lib {\n    fn main() {}\n}"
+    );
 }
 
 // Outer format tests
@@ -276,4 +310,84 @@ struct Wrapped<'src> {
 fn test_outer_format_pretty_variant() {
     let w = Wrapped { value: "test" };
     assert_formats(&(), &w, "(test)", "[ test ]");
+}
+
+// Collection types test
+#[derive(SyntaxFmtDerive)]
+#[syntax(delim = ", ", pretty_delim = ", ")]
+struct Ident<'src>(&'src str);
+
+#[derive(SyntaxFmtDerive)]
+struct Path<'src> {
+    segments: Vec<Ident<'src>>,
+}
+
+#[test]
+fn test_collection_vec() {
+    let path = Path {
+        segments: vec![Ident("foo"), Ident("bar"), Ident("baz")],
+    };
+    assert_formats(&(), &path, "foo, bar, baz", "foo, bar, baz");
+}
+
+#[derive(SyntaxFmtDerive)]
+struct PathSlice<'src> {
+    segments: &'src [Ident<'src>],
+}
+
+#[test]
+fn test_collection_slice() {
+    let idents = [Ident("a"), Ident("b"), Ident("c")];
+    let path = PathSlice { segments: &idents };
+    assert_formats(&(), &path, "a, b, c", "a, b, c");
+}
+
+#[derive(SyntaxFmtDerive)]
+struct PathArray<'src> {
+    segments: [Ident<'src>; 3],
+}
+
+#[test]
+fn test_collection_array() {
+    let path = PathArray {
+        segments: [Ident("x"), Ident("y"), Ident("z")],
+    };
+    assert_formats(&(), &path, "x, y, z", "x, y, z");
+}
+
+// Test collection with custom delimiters
+#[derive(SyntaxFmtDerive)]
+#[syntax(delim = "::", pretty_delim = " :: ")]
+struct PathSegment<'src>(&'src str);
+
+#[derive(SyntaxFmtDerive)]
+struct QualifiedPath<'src> {
+    segments: Vec<PathSegment<'src>>,
+}
+
+#[test]
+fn test_collection_with_custom_delim() {
+    let path = QualifiedPath {
+        segments: vec![PathSegment("std"), PathSegment("collections"), PathSegment("HashMap")],
+    };
+    assert_formats(&(), &path, "std::collections::HashMap", "std :: collections :: HashMap");
+}
+
+// Test collection with prefix/suffix formatting
+#[derive(SyntaxFmtDerive)]
+#[syntax(delim = ", ", pretty_delim = ",\n")]
+struct Item<'src>(&'src str);
+
+#[derive(SyntaxFmtDerive)]
+struct List<'src> {
+    #[syntax(format = "[{content}]", pretty_format = "[\n{content}\n]", indent_inc)]
+    items: Vec<Item<'src>>,
+}
+
+#[test]
+fn test_collection_with_wrapper() {
+    let list = List {
+        items: vec![Item("a"), Item("b"), Item("c")],
+    };
+    assert_formats(&(), &list, "[a, b, c]", "[\n    a,\n    b,\n    c\n]");
 }
