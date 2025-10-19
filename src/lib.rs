@@ -36,10 +36,10 @@
 //! };
 //!
 //! // Compact formatting
-//! assert_eq!(format!("{}", syntax_fmt(&(), &call)), "println(\"Hello, world!\")");
+//! assert_eq!(format!("{}", syntax_fmt(&call)), "println(\"Hello, world!\")");
 //!
 //! // Pretty formatting with .pretty()
-//! assert_eq!(format!("{}", syntax_fmt(&(), &call).pretty()), "println( \"Hello, world!\" )");
+//! assert_eq!(format!("{}", syntax_fmt(&call).pretty()), "println( \"Hello, world!\" )");
 //! ```
 //!
 //! # Derive Macro Attributes
@@ -66,14 +66,16 @@
 //!
 //! ## Basic struct formatting
 //!
+//! Note that syntax attribute may be used at the type level or at the field level.
+//! 
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
+//! #[syntax(format = "let {content};")]
 //! struct LetStatement<'src> {
-//!     #[syntax(format = "let {content} = ")]
 //!     name: &'src str,
-//!     #[syntax(format = "{content};")]
+//!     #[syntax(format = " = {content}")]
 //!     value: &'src str,
 //! }
 //!
@@ -82,32 +84,48 @@
 //!     value: "42",
 //! };
 //!
-//! assert_eq!(format!("{}", syntax_fmt(&(), &stmt)), "let x = 42;");
+//! assert_eq!(format!("{}", syntax_fmt(&stmt)), "let x = 42;");
 //! ```
 //!
-//! ## Optional fields
+//! ## Optional and boolean fields
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct TypeAnnotation<'src> {
+//! #[syntax(format = "{content};")]
+//! struct ConstStatement<'src> {
+//!     #[syntax(format = "pub ")]
+//!     is_pub: bool,
+//!     #[syntax(format = "const {content}: i32")]
 //!     name: &'src str,
-//!     #[syntax(format = ": {content}")]
-//!     type_name: Option<&'src str>,
+//!     #[syntax(format = " = {content}")]
+//!     value: Option<i32>,
 //! }
 //!
-//! let with_type = TypeAnnotation {
-//!     name: "x",
-//!     type_name: Some("i32"),
+//! let stmt = ConstStatement {
+//!     is_pub: false,
+//!     name: "X",
+//!     value: None,
 //! };
-//! assert_eq!(format!("{}", syntax_fmt(&(), &with_type)), "x: i32");
 //!
-//! let without_type = TypeAnnotation {
-//!     name: "y",
-//!     type_name: None,
+//! assert_eq!(format!("{}", syntax_fmt(&stmt)), "const X: i32;");
+//!
+//! let pub_stmt = ConstStatement {
+//!     is_pub: true,
+//!     name: "X",
+//!     value: None,
 //! };
-//! assert_eq!(format!("{}", syntax_fmt(&(), &without_type)), "y");
+//!
+//! assert_eq!(format!("{}", syntax_fmt(&pub_stmt)), "pub const X: i32;");
+//!
+//! let value_stmt = ConstStatement {
+//!     is_pub: true,
+//!     name: "X",
+//!     value: Some(42),
+//! };
+//!
+//! assert_eq!(format!("{}", syntax_fmt(&value_stmt)), "pub const X: i32 = 42;");
 //! ```
 //!
 //! ## Pretty printing with indentation
@@ -137,11 +155,10 @@
 //!
 //! let block = Block { body: Statement { code: "return 42" } };
 //!
-//! assert_eq!(format!("{}", syntax_fmt(&(), &block)), "{return 42;}");
-//! assert_eq!(format!("{}", syntax_fmt(&(), &block).pretty()), "{\n    return 42;\n}");
+//! assert_eq!(format!("{}", syntax_fmt(&block)), "{return 42;}");
+//! assert_eq!(format!("{}", syntax_fmt(&block).pretty()), "{\n    return 42;\n}");
 //!
-//! // Custom indentation with tabs
-//! assert_eq!(format!("{}", syntax_fmt(&(), &block).pretty().indent("\t")), "{\n\treturn 42;\n}");
+//! assert_eq!(format!("{}", syntax_fmt(&block).pretty().indent("\t")), "{\n\treturn 42;\n}");
 //! ```
 //!
 //! ## Using `empty_suffix` for empty collections
@@ -159,8 +176,8 @@
 //! struct Statement<'src>(&'src str);
 //!
 //! #[derive(SyntaxFmt)]
+//! #[syntax(format = "mod {content}")]
 //! struct Module<'src> {
-//!     #[syntax(format = "mod {content}")]
 //!     name: &'src str,
 //!     #[syntax(format = " {{{content}}}", empty_suffix = ";")]
 //!     items: Vec<Statement<'src>>,
@@ -170,13 +187,13 @@
 //!     name: "empty",
 //!     items: vec![],
 //! };
-//! assert_eq!(format!("{}", syntax_fmt(&(), &empty)), "mod empty;");
+//! assert_eq!(format!("{}", syntax_fmt(&empty)), "mod empty;");
 //!
 //! let with_items = Module {
 //!     name: "lib",
 //!     items: vec![Statement("fn main()")],
 //! };
-//! assert_eq!(format!("{}", syntax_fmt(&(), &with_items)), "mod lib {fn main()}");
+//! assert_eq!(format!("{}", syntax_fmt(&with_items)), "mod lib {fn main()}");
 //! ```
 //!
 //! ## Collection formatting
@@ -201,11 +218,11 @@
 //! };
 //!
 //! assert_eq!(
-//!     format!("{}", syntax_fmt(&(), &path)),
+//!     format!("{}", syntax_fmt(&path)),
 //!     "std::collections::HashMap"
 //! );
 //! assert_eq!(
-//!     format!("{}", syntax_fmt(&(), &path).pretty()),
+//!     format!("{}", syntax_fmt(&path).pretty()),
 //!     "std :: collections :: HashMap"
 //! );
 //! ```
@@ -228,7 +245,7 @@
 //! }
 //!
 //! let lit = StringLiteral { value: "hello" };
-//! assert_eq!(format!("{}", syntax_fmt(&(), &lit)), "\"hello\"");
+//! assert_eq!(format!("{}", syntax_fmt(&lit)), "\"hello\"");
 //! ```
 //!
 //! ## Stateful formatting with mutable state
@@ -237,7 +254,7 @@
 //! modify user-provided state during formatting.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt_mut};
+//! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
 //!
 //! // State that tracks variable assignments
 //! struct VarTracker {
@@ -267,8 +284,8 @@
 //! let mut tracker = VarTracker { next_id: 0 };
 //! let decl_0 = VarDecl { name: "x" };
 //! let decl_1 = VarDecl { name: "x" };
-//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl_0)), "let x_0 = ");
-//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl_0)), "let x_1 = ");
+//! assert_eq!(format!("{}", syntax_fmt(&decl_0).state_mut(&mut tracker)), "let x_0 = ");
+//! assert_eq!(format!("{}", syntax_fmt(&decl_1).state_mut(&mut tracker)), "let x_1 = ");
 //! assert_eq!(tracker.next_id, 2);
 //! ```
 
@@ -279,13 +296,23 @@ use std::ops::{Deref, DerefMut};
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
+// Static unit value for default state
+static UNIT_STATE: () = ();
+
 // Holds state reference
 enum StateRef<'s, S> {
+    None(&'s S),
     Immutable(&'s S),
     Mutable(&'s mut S),
 }
 
 impl<'s, S> StateRef<'s, S> {
+    #[must_use]
+    #[inline]
+    fn new_none(none_val: &'s S) -> Self {
+        StateRef::None(none_val)
+    }
+
     #[must_use]
     #[inline]
     fn new_ref(r: &'s S) -> Self {
@@ -302,6 +329,7 @@ impl<'s, S> StateRef<'s, S> {
     #[inline]
     fn as_ref(&self) -> &S {
         match self {
+            StateRef::None(r) => r,
             StateRef::Immutable(r) => r,
             StateRef::Mutable(r) => r,
         }
@@ -312,6 +340,7 @@ impl<'s, S> StateRef<'s, S> {
     #[track_caller]
     fn as_mut(&mut self) -> &mut S {
         match self {
+            StateRef::None(_) => panic!("StateRef: no state has been set"),
             StateRef::Immutable(_) => panic!("StateRef: state is immutable"),
             StateRef::Mutable(r) => r,
         }
@@ -410,39 +439,35 @@ impl<'sr, 's, 'f, 'w, S> DerefMut for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 }
 
 /// A wrapper that implements `Display` for types implementing `SyntaxFmt`.
-pub struct SyntaxDisplay<'s, 'e, S, E>
-where
-    E: SyntaxFmt<S>,
-{
+pub struct SyntaxDisplay<'s, 'e, S, E> {
     state: RefCell<StateRef<'s, S>>,
     elem: &'e E,
     pretty: bool,
     indent: &'static str,
 }
 
-impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E>
-where
-    E: SyntaxFmt<S>,
-{
+impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
+    /// Set the state to use during formatting (immutable).
     #[must_use]
     #[inline]
-    fn new(state: &'s S, elem: &'e E) -> Self {
-        Self {
+    pub fn state<'s2, S2>(self, state: &'s2 S2) -> SyntaxDisplay<'s2, 'e, S2, E> {
+        SyntaxDisplay {
             state: RefCell::new(StateRef::new_ref(state)),
-            elem,
-            pretty: false,
-            indent: "    ",
+            elem: self.elem,
+            pretty: self.pretty,
+            indent: self.indent,
         }
     }
 
+    /// Set the state to use during formatting (mutable).
     #[must_use]
     #[inline]
-    fn new_mut(state: &'s mut S, elem: &'e E) -> Self {
-        Self {
+    pub fn state_mut<'s2, S2>(self, state: &'s2 mut S2) -> SyntaxDisplay<'s2, 'e, S2, E> {
+        SyntaxDisplay {
             state: RefCell::new(StateRef::new_mut(state)),
-            elem,
-            pretty: false,
-            indent: "    ",
+            elem: self.elem,
+            pretty: self.pretty,
+            indent: self.indent,
         }
     }
 
@@ -482,12 +507,12 @@ where
 /// Returns a [`SyntaxDisplay`] wrapper that implements `Display`, allowing it to be
 /// used with `format!`, `println!`, and other formatting macros.
 ///
-/// Chain with `.pretty()` to enable pretty printing mode and `.indent()` to customize
-/// the indentation string (default is four spaces).
+/// By default, uses `()` as the state. Chain with `.state()` or `.state_mut()` to provide
+/// custom state. Chain with `.pretty()` to enable pretty printing mode and `.indent()` to
+/// customize the indentation string (default is four spaces).
 ///
 /// # Arguments
 ///
-/// * `state` - User-defined state to pass through the formatting process
 /// * `elem` - The syntax tree to format
 ///
 /// # Examples
@@ -502,39 +527,14 @@ where
 /// }
 ///
 /// let expr = Expr { value: "42" };
-/// assert_eq!(format!("{}", syntax_fmt(&(), &expr)), "(42)");
-/// assert_eq!(format!("{}", syntax_fmt(&(), &expr).pretty()), "( 42 )");
+/// assert_eq!(format!("{}", syntax_fmt(&expr)), "(42)");
+/// assert_eq!(format!("{}", syntax_fmt(&expr).pretty()), "( 42 )");
 /// ```
-#[must_use]
-#[inline]
-pub fn syntax_fmt<'s, 'e, S, E>(
-    state: &'s S,
-    elem: &'e E,
-) -> SyntaxDisplay<'s, 'e, S, E>
-where
-    E: SyntaxFmt<S>,
-{
-    SyntaxDisplay::new(state, elem)
-}
-
-/// Formats a syntax tree with mutable state.
 ///
-/// Returns a [`SyntaxDisplay`] wrapper that implements `Display`. This variant allows
-/// the state to be modified during formatting, useful for tracking generated identifiers,
-/// maintaining counters, or updating symbol tables.
-///
-/// Chain with `.pretty()` to enable pretty printing mode and `.indent()` to customize
-/// the indentation string (default is four spaces).
-///
-/// # Arguments
-///
-/// * `state` - Mutable user-defined state to pass through the formatting process
-/// * `elem` - The syntax tree to format
-///
-/// # Examples
+/// ## With custom state
 ///
 /// ```
-/// use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt_mut};
+/// use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
 ///
 /// struct Counter {
 ///     count: usize,
@@ -546,29 +546,30 @@ where
 ///     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
 ///         let count = ctx.state().count;
 ///         ctx.state_mut().count += 1;
-///         write!(ctx, "item_{}", count)
+///         if ctx.is_pretty() {
+///             write!(ctx, "pretty_item_{}", count)
+///         } else {
+///             write!(ctx, "item_{}", count)
+///         }
 ///     }
 /// }
 ///
 /// let mut state = Counter { count: 0 };
 /// let item = Item;
-/// assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item)), "item_0");
+/// assert_eq!(format!("{}", syntax_fmt(&item).state_mut(&mut state)), "item_0");
 /// assert_eq!(state.count, 1);
-///
-/// // Pretty printing with mutable state
-/// assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item).pretty()), "item_1");
+/// assert_eq!(format!("{}", syntax_fmt(&item).state_mut(&mut state).pretty()), "pretty_item_1");
 /// assert_eq!(state.count, 2);
 /// ```
 #[must_use]
 #[inline]
-pub fn syntax_fmt_mut<'s, 'e, S, E>(
-    state: &'s mut S,
-    elem: &'e E,
-) -> SyntaxDisplay<'s, 'e, S, E>
-where
-    E: SyntaxFmt<S>,
-{
-    SyntaxDisplay::new_mut(state, elem)
+pub fn syntax_fmt<'e, E>(elem: &'e E) -> SyntaxDisplay<'static, 'e, (), E> {
+    SyntaxDisplay {
+        state: RefCell::new(StateRef::new_none(&UNIT_STATE)),
+        elem,
+        pretty: false,
+        indent: "    ",
+    }
 }
 
 /// Trait for types that can be formatted as syntax.

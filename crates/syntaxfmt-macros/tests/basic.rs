@@ -1,16 +1,5 @@
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, syntax_fmt_mut, SyntaxFmt, SyntaxFormatter};
-
-#[track_caller]
-fn assert_formats<State, T: SyntaxFmt<State>>(
-    state: &State,
-    value: &T,
-    expected_normal: &str,
-    expected_pretty: &str,
-) {
-    assert_eq!(format!("{}", syntax_fmt(state, value)), expected_normal);
-    assert_eq!(format!("{}", syntax_fmt(state, value).pretty()), expected_pretty);
-}
+use syntaxfmt::{syntax_fmt, SyntaxFmt, SyntaxFormatter};
 
 // Shared test types
 #[derive(SyntaxFmtDerive)]
@@ -57,7 +46,8 @@ struct SimpleStruct<'src> {
 #[test]
 fn test_basic_struct() {
     let s = SimpleStruct { name: "foo" };
-    assert_formats(&(), &s, "name: foo", "name: foo");
+    assert_eq!(format!("{}", syntax_fmt(&s)), "name: foo");
+    assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "name: foo");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -70,10 +60,13 @@ struct WithOptional<'src> {
 
 #[test]
 fn test_optional_field() {
-    assert_formats(&(), &WithOptional { required: "req", optional: Some("opt") },
-        "required: req; optional: opt", "required: req;\noptional: opt");
-    assert_formats(&(), &WithOptional { required: "req", optional: None },
-        "required: req;", "required: req;\n");
+    let with_opt = WithOptional { required: "req", optional: Some("opt") };
+    assert_eq!(format!("{}", syntax_fmt(&with_opt)), "required: req; optional: opt");
+    assert_eq!(format!("{}", syntax_fmt(&with_opt).pretty()), "required: req;\noptional: opt");
+
+    let without_opt = WithOptional { required: "req", optional: None };
+    assert_eq!(format!("{}", syntax_fmt(&without_opt)), "required: req;");
+    assert_eq!(format!("{}", syntax_fmt(&without_opt).pretty()), "required: req;\n");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -86,8 +79,10 @@ enum SimpleEnum<'src> {
 
 #[test]
 fn test_enum() {
-    assert_formats(&(), &SimpleEnum::Super, "super", "super");
-    assert_formats(&(), &SimpleEnum::Ident("foo"), "foo", "foo");
+    assert_eq!(format!("{}", syntax_fmt(&SimpleEnum::Super)), "super");
+    assert_eq!(format!("{}", syntax_fmt(&SimpleEnum::Super).pretty()), "super");
+    assert_eq!(format!("{}", syntax_fmt(&SimpleEnum::Ident("foo"))), "foo");
+    assert_eq!(format!("{}", syntax_fmt(&SimpleEnum::Ident("foo")).pretty()), "foo");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -100,8 +95,13 @@ struct FunctionDecl<'src> {
 
 #[test]
 fn test_bool_field() {
-    assert_formats(&(), &FunctionDecl { is_pub: true, name: "test" }, "pub fn test", "pub fn test");
-    assert_formats(&(), &FunctionDecl { is_pub: false, name: "test" }, "fn test", "fn test");
+    let pub_fn = FunctionDecl { is_pub: true, name: "test" };
+    assert_eq!(format!("{}", syntax_fmt(&pub_fn)), "pub fn test");
+    assert_eq!(format!("{}", syntax_fmt(&pub_fn).pretty()), "pub fn test");
+
+    let priv_fn = FunctionDecl { is_pub: false, name: "test" };
+    assert_eq!(format!("{}", syntax_fmt(&priv_fn)), "fn test");
+    assert_eq!(format!("{}", syntax_fmt(&priv_fn).pretty()), "fn test");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -113,7 +113,8 @@ struct WithFormatLiteral<'src> {
 
 #[test]
 fn test_format_literal() {
-    assert_formats(&(), &WithFormatLiteral { name: "foo" }, "name: CUSTOM", "name: CUSTOM");
+    assert_eq!(format!("{}", syntax_fmt(&WithFormatLiteral { name: "foo" })), "name: CUSTOM");
+    assert_eq!(format!("{}", syntax_fmt(&WithFormatLiteral { name: "foo" }).pretty()), "name: CUSTOM");
 }
 
 // Custom formatters
@@ -129,7 +130,8 @@ struct WithCustomFormatter<'src> {
 
 #[test]
 fn test_custom_formatter() {
-    assert_formats(&(), &WithCustomFormatter { value: "test" }, "value: {test} ", "value: {test} ");
+    assert_eq!(format!("{}", syntax_fmt(&WithCustomFormatter { value: "test" })), "value: {test} ");
+    assert_eq!(format!("{}", syntax_fmt(&WithCustomFormatter { value: "test" }).pretty()), "value: {test} ");
 }
 
 // Stateful formatter
@@ -159,7 +161,9 @@ struct WithStatefulFormatter<'src> {
 
 #[test]
 fn test_stateful_formatter() {
-    assert_formats(&TestResolver, &WithStatefulFormatter { id: "foo" }, "id: resolved_foo", "id: resolved_foo");
+    let mut resolver = TestResolver;
+    assert_eq!(format!("{}", syntax_fmt(&WithStatefulFormatter { id: "foo" }).state_mut(&mut resolver)), "id: resolved_foo");
+    assert_eq!(format!("{}", syntax_fmt(&WithStatefulFormatter { id: "foo" }).state_mut(&mut resolver)), "id: resolved_foo");
 }
 
 // Module with indentation and empty_suffix
@@ -178,10 +182,13 @@ struct Module<'src> {
 
 #[test]
 fn test_indent_and_empty_suffix() {
-    assert_formats(&(), &Module { name: "empty", items: Items(vec![]) },
-        "mod empty;", "mod empty;");
-    assert_formats(&(), &Module { name: "lib", items: Items(vec![Statement("item1"), Statement("item2")]) },
-        "mod lib {item1, item2}", "mod lib {\n    item1\n    item2\n}");
+    let empty = Module { name: "empty", items: Items(vec![]) };
+    assert_eq!(format!("{}", syntax_fmt(&empty)), "mod empty;");
+    assert_eq!(format!("{}", syntax_fmt(&empty).pretty()), "mod empty;");
+
+    let with_items = Module { name: "lib", items: Items(vec![Statement("item1"), Statement("item2")]) };
+    assert_eq!(format!("{}", syntax_fmt(&with_items)), "mod lib {item1, item2}");
+    assert_eq!(format!("{}", syntax_fmt(&with_items).pretty()), "mod lib {\n    item1\n    item2\n}");
 }
 
 // Outer format with pretty variant
@@ -195,8 +202,13 @@ struct RefType<'src> {
 
 #[test]
 fn test_outer_format() {
-    assert_formats(&(), &RefType { is_mut: true, value: "x" }, "&mut x", "ref mut x");
-    assert_formats(&(), &RefType { is_mut: false, value: "x" }, "&x", "ref x");
+    let mut_ref = RefType { is_mut: true, value: "x" };
+    assert_eq!(format!("{}", syntax_fmt(&mut_ref)), "&mut x");
+    assert_eq!(format!("{}", syntax_fmt(&mut_ref).pretty()), "ref mut x");
+
+    let immut_ref = RefType { is_mut: false, value: "x" };
+    assert_eq!(format!("{}", syntax_fmt(&immut_ref)), "&x");
+    assert_eq!(format!("{}", syntax_fmt(&immut_ref).pretty()), "ref x");
 }
 
 // Collections (Vec, slice, array all work the same)
@@ -219,7 +231,8 @@ fn test_collections() {
         slice: &idents,
         array: [Ident("x"), Ident("y")],
     };
-    assert_formats(&(), &c, "foo, bara, bx, y", "foo, bara, bx, y");
+    assert_eq!(format!("{}", syntax_fmt(&c)), "foo, bara, bx, y");
+    assert_eq!(format!("{}", syntax_fmt(&c).pretty()), "foo, bara, bx, y");
 }
 
 // Custom delimiter
@@ -237,7 +250,8 @@ fn test_collection_with_custom_delim() {
     let path = QualifiedPath {
         segments: vec![PathSegment("std"), PathSegment("collections"), PathSegment("HashMap")],
     };
-    assert_formats(&(), &path, "std::collections::HashMap", "std :: collections :: HashMap");
+    assert_eq!(format!("{}", syntax_fmt(&path)), "std::collections::HashMap");
+    assert_eq!(format!("{}", syntax_fmt(&path).pretty()), "std :: collections :: HashMap");
 }
 
 // Collection with wrapper and indentation
@@ -253,8 +267,9 @@ struct List<'src> {
 
 #[test]
 fn test_collection_with_wrapper() {
-    assert_formats(&(), &List { items: vec![Item("a"), Item("b"), Item("c")] },
-        "[a, b, c]", "[\n    a,\n    b,\n    c\n]");
+    let list = List { items: vec![Item("a"), Item("b"), Item("c")] };
+    assert_eq!(format!("{}", syntax_fmt(&list)), "[a, b, c]");
+    assert_eq!(format!("{}", syntax_fmt(&list).pretty()), "[\n    a,\n    b,\n    c\n]");
 }
 
 // Mutable state
@@ -277,9 +292,9 @@ fn test_mutable_state() {
     let mut state = Counter { count: 0 };
     let item = CountedItem;
 
-    assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item)), "item_0");
+    assert_eq!(format!("{}", syntax_fmt(&item).state_mut(&mut state)), "item_0");
     assert_eq!(state.count, 1);
-    assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item).pretty()), "item_1");
+    assert_eq!(format!("{}", syntax_fmt(&item).state_mut(&mut state).pretty()), "item_1");
     assert_eq!(state.count, 2);
 }
 
@@ -294,5 +309,6 @@ fn test_immutable_state_panics_on_mut_access() {
         }
     }
 
-    let _ = format!("{}", syntax_fmt(&Counter { count: 0 }, &BadItem));
+    let counter = Counter { count: 0 };
+    let _ = format!("{}", syntax_fmt(&BadItem).state(&counter));
 }
