@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [ ],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "rust: cargo build",
+			"presentation": {
+				"reveal": "always",
+				"clear": true
+			},
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"args": [ "--all", "--", "--show-output", "--test-threads=1" ], // <-- To enable println in tests and use 1 thread
+//			"args": [ ],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "rust: cargo test",
+			"presentation": {
+				"reveal": "always",
+				"clear": true
+			},
+		},
+		{
+			"type": "shell",
+			"label": "rust: build tests",
+			"command": "cargo",
+			"group": "build",
+			"args": [
+				"test", "--no-run"
+			],
+			"problemMatcher": [
+				"$rustc"
+			]
+		}
+	]
+}

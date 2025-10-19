@@ -1,0 +1,18 @@
+[package]
+name = "syntaxfmt"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = [
+  "crates/*",
+]
+
+[features]
+default = [
+    "derive",
+]
+derive = [ "syntaxfmt-macros" ]
+
+[dependencies]
+syntaxfmt-macros = { path = "crates/syntaxfmt-macros", optional = true }
