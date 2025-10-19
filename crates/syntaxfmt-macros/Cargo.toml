@@ -2,6 +2,14 @@
 name = "syntaxfmt-macros"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Procedural macros for the syntaxfmt crate."
+homepage = "https://github.com/jngls/syntaxfmt"
+repository = "https://github.com/jngls/syntaxfmt"
+documentation = "https://docs.rs/syntaxfmt-macros"
+categories = ["development-tools::procedural-macro-helpers"]
+keywords = ["syntax", "formatting", "derive", "macro"]
 
 [lib]
 proc-macro = true

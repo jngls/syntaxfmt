@@ -1,9 +1,8 @@
 # syntaxfmt
 
-[![Crates.io](https://img.shields.io/crates/v/syntaxfmt.svg)](https://crates.io/crates/syntaxfmt)
-[![Documentation](https://docs.rs/syntaxfmt/badge.svg)](https://docs.rs/syntaxfmt)
-[![License](https://img.shields.io/crates/l/syntaxfmt.svg)](https://github.com/jngls/syntaxfmt#license)
-[![Downloads](https://img.shields.io/crates/d/syntaxfmt.svg)](https://crates.io/crates/syntaxfmt)
+[![Crates.io](https://img.shields.io/crates/d/syntaxfmt.svg)](https://crates.io/crates/syntaxfmt)
+[![MIT License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE-MIT)
+[![APACHE 2.0 License](https://img.shields.io/badge/license-APACHE%202.0-brightgreen)](LICENSE-APACHE)
 
 A derive macro-based library for flexible syntax tree formatting with pretty printing support.
 
