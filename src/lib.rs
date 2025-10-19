@@ -26,7 +26,7 @@
 //! struct FunctionCall<'src> {
 //!     #[syntax(format = "{content}(")]
 //!     name: &'src str,
-//!     #[syntax(format = "{content})")]
+//!     #[syntax(format = "{content})", pretty_format = " {content} )")]
 //!     args: &'src str,
 //! }
 //!
@@ -35,7 +35,11 @@
 //!     args: "\"Hello, world!\"",
 //! };
 //!
+//! // Compact formatting
 //! assert_eq!(format!("{}", syntax_fmt(&(), &call)), "println(\"Hello, world!\")");
+//!
+//! // Pretty formatting with .pretty()
+//! assert_eq!(format!("{}", syntax_fmt(&(), &call).pretty()), "println( \"Hello, world!\" )");
 //! ```
 //!
 //! # Derive Macro Attributes
@@ -62,7 +66,7 @@
 //! ## Basic struct formatting
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, syntax_fmt, syntax_fmt_pretty};
+//! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
 //! struct LetStatement<'src> {
@@ -111,7 +115,7 @@
 //! before formatting a field in pretty mode.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, syntax_fmt, syntax_fmt_pretty};
+//! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Statement<'src> {
@@ -132,7 +136,7 @@
 //! let block = Block { body: Statement { code: "return 42" } };
 //!
 //! assert_eq!(format!("{}", syntax_fmt(&(), &block)), "{return 42;}");
-//! assert_eq!(format!("{}", syntax_fmt_pretty(&(), &block)), "{\n    return 42;\n}");
+//! assert_eq!(format!("{}", syntax_fmt(&(), &block).pretty()), "{\n    return 42;\n}");
 //! ```
 //!
 //! ## Using `empty_suffix` for empty collections
@@ -175,7 +179,7 @@
 //! elements and using the element type's delimiter configuration.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, syntax_fmt, syntax_fmt_pretty};
+//! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
 //! #[syntax(delim = "::", pretty_delim = " :: ")]
@@ -195,7 +199,7 @@
 //!     "std::collections::HashMap"
 //! );
 //! assert_eq!(
-//!     format!("{}", syntax_fmt_pretty(&(), &path)),
+//!     format!("{}", syntax_fmt(&(), &path).pretty()),
 //!     "std :: collections :: HashMap"
 //! );
 //! ```
@@ -207,7 +211,7 @@
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt};
 //!
-//! fn quote_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
+//! fn quote_formatter<S>(value: &str, ctx: &mut SyntaxFmtContext<S>) -> std::fmt::Result {
 //!     write!(ctx, "\"{}\"", value)
 //! }
 //!
@@ -221,84 +225,106 @@
 //! assert_eq!(format!("{}", syntax_fmt(&(), &lit)), "\"hello\"");
 //! ```
 //!
-//! ## Stateful formatting
+//! ## Stateful formatting with mutable state
 //!
-//! You can manually implement `SyntaxFmt` with state bounds to access user-provided state
-//! like symbol tables or configuration during formatting.
+//! You can manually implement `SyntaxFmt` to access and modify user-provided state
+//! during formatting. This is useful for tracking counters, generating unique IDs,
+//! or updating symbol tables.
 //!
 //! ```
-//! use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt};
+//! use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt_mut};
 //!
-//! // Define a trait for name resolution
-//! trait NameResolver {
-//!     fn resolve(&self, id: &str) -> String;
+//! // State that tracks variable assignments
+//! struct VarTracker {
+//!     next_id: usize,
 //! }
 //!
-//! struct SymbolTable;
-//! impl NameResolver for SymbolTable {
-//!     fn resolve(&self, id: &str) -> String {
-//!         format!("resolved_{}", id)
+//! impl VarTracker {
+//!     fn allocate(&mut self) -> usize {
+//!         let id = self.next_id;
+//!         self.next_id += 1;
+//!         id
 //!     }
 //! }
 //!
-//! // Manually implement SyntaxFmt with a state bound
-//! struct Identifier<'src> {
+//! // A variable declaration that gets a unique ID
+//! struct VarDecl<'src> {
 //!     name: &'src str,
 //! }
 //!
-//! impl<'src, State: NameResolver> SyntaxFmt<State> for Identifier<'src> {
-//!     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-//!         write!(ctx, "{}", ctx.state().resolve(self.name))
+//! impl<'src> SyntaxFmt<VarTracker> for VarDecl<'src> {
+//!     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<VarTracker>) -> std::fmt::Result {
+//!         let id = ctx.state_mut().allocate();
+//!         write!(ctx, "let {}_{} = ", self.name, id)
 //!     }
 //! }
 //!
-//! let symbols = SymbolTable;
-//! let ident = Identifier { name: "x" };
-//! assert_eq!(format!("{}", syntax_fmt(&symbols, &ident)), "resolved_x");
+//! let mut tracker = VarTracker { next_id: 0 };
+//! let decl = VarDecl { name: "x" };
+//! assert_eq!(format!("{}", syntax_fmt_mut(&mut tracker, &decl)), "let x_0 = ");
+//! assert_eq!(tracker.next_id, 1);
 //! ```
 
-use std::cell::Cell;
+use core::panic;
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Arguments, Display, Formatter, Result as FmtResult};
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
+// Holds state reference
+enum StateRef<'s, S> {
+    Immutable(&'s S),
+    Mutable(&'s mut S),
+}
+
+impl<'s, S> StateRef<'s, S> {
+    #[must_use]
+    #[inline]
+    fn new_ref(r: &'s S) -> Self {
+        StateRef::Immutable(r)
+    }
+
+    #[must_use]
+    #[inline]
+    fn new_mut(r: &'s mut S) -> Self {
+        StateRef::Mutable(r)
+    }
+
+    #[must_use]
+    #[inline]
+    fn as_ref(&self) -> &S {
+        match self {
+            StateRef::Immutable(r) => r,
+            StateRef::Mutable(r) => r,
+        }
+    }
+
+    #[must_use]
+    #[inline]
+    #[track_caller]
+    fn as_mut(&mut self) -> &mut S {
+        match self {
+            StateRef::Immutable(_) => panic!("StateRef: state is immutable"),
+            StateRef::Mutable(r) => r,
+        }
+    }
+}
+
 /// Context passed to formatting implementations, containing the formatter and formatting state.
-///
-/// This type is automatically provided to `SyntaxFmt::syntax_fmt` implementations and should
-/// be used for all write operations and state access.
-///
-/// # Type Parameters
-///
-/// - `'fmt` - Lifetime of the formatter reference
-/// - `'wrt` - Lifetime of the formatting write operation
-/// - `State` - User-defined state type for contextual information
-///
-/// # Examples
-///
-/// ```
-/// use syntaxfmt::SyntaxFmtContext;
-///
-/// fn custom_formatter<State>(
-///     value: &str,
-///     ctx: &mut SyntaxFmtContext<State>,
-/// ) -> std::fmt::Result {
-///     write!(ctx, "custom({})", value)
-/// }
-/// ```
-pub struct SyntaxFmtContext<'fmt, 'wrt, State> {
-    f: &'fmt mut Formatter<'wrt>,
-    state: Cell<&'fmt State>,
+pub struct SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
+    f: &'f mut Formatter<'w>,
+    state: &'sr RefCell<StateRef<'s, S>>,
     ind: usize,
     pretty: bool,
 }
 
-impl<'fmt, 'wrt, State> SyntaxFmtContext<'fmt, 'wrt, State> {
+impl<'sr, 's, 'f, 'w, S> SyntaxFmtContext<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'fmt mut Formatter<'wrt>, state: &'fmt State) -> Self {
+    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>) -> Self {
         Self {
             f,
-            state: Cell::new(state),
+            state,
             ind: 0,
             pretty: false,
         }
@@ -306,36 +332,16 @@ impl<'fmt, 'wrt, State> SyntaxFmtContext<'fmt, 'wrt, State> {
 
     #[must_use]
     #[inline]
-    fn new_pretty(f: &'fmt mut Formatter<'wrt>, state: &'fmt State) -> Self {
+    fn new_pretty(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>) -> Self {
         Self {
             f,
-            state: Cell::new(state),
+            state,
             ind: 0,
             pretty: true,
         }
     }
 
     /// Returns `true` if pretty printing mode is enabled.
-    ///
-    /// Use this to conditionally emit different formatting based on the mode.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext};
-    ///
-    /// struct MyType;
-    ///
-    /// impl SyntaxFmt<()> for MyType {
-    ///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<()>) -> std::fmt::Result {
-    ///         if ctx.is_pretty() {
-    ///             write!(ctx, "pretty")
-    ///         } else {
-    ///             write!(ctx, "compact")
-    ///         }
-    ///     }
-    /// }
-    /// ```
     #[must_use]
     #[inline]
     pub fn is_pretty(&self) -> bool {
@@ -343,135 +349,45 @@ impl<'fmt, 'wrt, State> SyntaxFmtContext<'fmt, 'wrt, State> {
     }
 
     /// Returns a reference to the user-defined state.
-    ///
-    /// The state can be used to pass contextual information through the formatting process,
-    /// such as symbol tables, configuration, or other data needed by custom formatters.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::SyntaxFmtContext;
-    ///
-    /// struct Config {
-    ///     verbose: bool,
-    /// }
-    ///
-    /// fn formatter(value: &str, ctx: &mut SyntaxFmtContext<Config>) -> std::fmt::Result {
-    ///     if ctx.state().verbose {
-    ///         write!(ctx, "verbose: {}", value)
-    ///     } else {
-    ///         write!(ctx, "{}", value)
-    ///     }
-    /// }
-    /// ```
     #[must_use]
     #[inline]
-    pub fn state(&self) -> &'fmt State {
-        self.state.get()
+    pub fn state(&self) -> Ref<S> {
+        Ref::map(self.state.borrow(), |s| s.as_ref())
+    }
+
+    /// Returns a mutable reference to the user-defined state. Panics if state is immutable.
+    #[must_use]
+    #[inline]
+    #[track_caller]
+    pub fn state_mut<'a>(&'a mut self) -> RefMut<'a, S> {
+        RefMut::map(self.state.borrow_mut(), |s| s.as_mut())
     }
 
     /// Writes formatted arguments to the output.
-    ///
-    /// This is typically called via the `write!` macro rather than directly.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::SyntaxFmtContext;
-    ///
-    /// fn my_formatter<State>(ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-    ///     write!(ctx, "Hello, {}!", "world")
-    /// }
-    /// ```
     #[inline]
     pub fn write_fmt(&mut self, args: Arguments<'_>) -> FmtResult {
         self.f.write_fmt(args)
     }
 
     /// Writes a string slice to the output.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::SyntaxFmtContext;
-    ///
-    /// fn my_formatter<State>(ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-    ///     ctx.write_str("Hello, world!")
-    /// }
-    /// ```
     #[inline]
     pub fn write_str(&mut self, s: &str) -> FmtResult {
         self.f.write_str(s)
     }
 
     /// Writes the current indentation to the output.
-    ///
-    /// The indent string is repeated according to the current indentation level.
-    /// This is typically only used in pretty printing mode.
-    ///
-    /// # Arguments
-    ///
-    /// * `indent` - The string to repeat for each indentation level (e.g., `"    "` for 4 spaces)
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext};
-    ///
-    /// struct Indented;
-    ///
-    /// impl SyntaxFmt<()> for Indented {
-    ///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<()>) -> std::fmt::Result {
-    ///         if ctx.is_pretty() {
-    ///             ctx.indent("  ")?;
-    ///         }
-    ///         write!(ctx, "content")
-    ///     }
-    /// }
-    /// ```
     #[inline]
     pub fn indent(&mut self, indent: &str) -> FmtResult {
         write!(self.f, "{}", indent.repeat(self.ind))
     }
 
     /// Increases the indentation level by one.
-    ///
-    /// Should be paired with a corresponding `dec_indent()` call.
-    /// This is automatically handled by the `indent_inc` attribute.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::SyntaxFmtContext;
-    ///
-    /// fn nested_formatter<State>(ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-    ///     ctx.inc_indent();
-    ///     write!(ctx, "nested")?;
-    ///     ctx.dec_indent();
-    ///     Ok(())
-    /// }
-    /// ```
     #[inline]
     pub fn inc_indent(&mut self) {
         self.ind += 1;
     }
 
     /// Decreases the indentation level by one.
-    ///
-    /// Uses saturating subtraction to prevent underflow.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::SyntaxFmtContext;
-    ///
-    /// fn nested_formatter<State>(ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-    ///     ctx.inc_indent();
-    ///     write!(ctx, "nested")?;
-    ///     ctx.dec_indent();
-    ///     Ok(())
-    /// }
-    /// ```
     #[inline]
     pub fn dec_indent(&mut self) {
         self.ind = self.ind.saturating_sub(1);
@@ -479,69 +395,73 @@ impl<'fmt, 'wrt, State> SyntaxFmtContext<'fmt, 'wrt, State> {
 }
 
 /// A wrapper that implements `Display` for types implementing `SyntaxFmt`.
-///
-/// This type is returned by [`syntax_fmt`] and [`syntax_fmt_pretty`] and should typically
-/// not be constructed directly.
-pub struct SyntaxDisplay<'state, 'syn, State, T>
+pub struct SyntaxDisplay<'s, 'e, S, E>
 where
-    'state: 'syn,
-    T: SyntaxFmt<State>,
+    E: SyntaxFmt<S>,
 {
-    state: &'state State,
-    syn: &'syn T,
+    state: RefCell<StateRef<'s, S>>,
+    elem: &'e E,
     pretty: bool,
 }
 
-impl<'state, 'syn, State, T> SyntaxDisplay<'state, 'syn, State, T>
+impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E>
 where
-    'state: 'syn,
-    T: SyntaxFmt<State>,
+    E: SyntaxFmt<S>,
 {
     #[must_use]
     #[inline]
-    fn new(state: &'state State, syn: &'syn T) -> Self {
+    fn new(state: &'s S, elem: &'e E) -> Self {
         Self {
-            state,
-            syn,
+            state: RefCell::new(StateRef::new_ref(state)),
+            elem,
             pretty: false,
         }
     }
 
     #[must_use]
     #[inline]
-    fn new_pretty(state: &'state State, syn: &'syn T) -> Self {
+    fn new_mut(state: &'s mut S, elem: &'e E) -> Self {
         Self {
-            state,
-            syn,
-            pretty: true,
+            state: RefCell::new(StateRef::new_mut(state)),
+            elem,
+            pretty: false,
         }
+    }
+
+    /// Enable pretty printing mode.
+    #[must_use]
+    #[inline]
+    pub fn pretty(mut self) -> Self {
+        self.pretty = true;
+        self
     }
 }
 
-impl<'state, 'syn, State, T> Display for SyntaxDisplay<'state, 'syn, State, T>
+impl<'s, 'e, S, E> Display for SyntaxDisplay<'s, 'e, S, E>
 where
-    'state: 'syn,
-    T: SyntaxFmt<State>,
+    E: SyntaxFmt<S>,
 {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let mut ctx = if self.pretty {
-            SyntaxFmtContext::new_pretty(f, self.state)
+            SyntaxFmtContext::new_pretty(f, &self.state)
         } else {
-            SyntaxFmtContext::new(f, self.state)
+            SyntaxFmtContext::new(f, &self.state)
         };
-        self.syn.syntax_fmt(&mut ctx)
+        self.elem.syntax_fmt(&mut ctx)
     }
 }
 
-/// Formats a syntax tree in compact mode.
+/// Formats a syntax tree.
 ///
 /// Returns a [`SyntaxDisplay`] wrapper that implements `Display`, allowing it to be
 /// used with `format!`, `println!`, and other formatting macros.
 ///
+/// Chain with `.pretty()` to enable pretty printing mode.
+///
 /// # Arguments
 ///
 /// * `state` - User-defined state to pass through the formatting process
-/// * `syn` - The syntax tree to format
+/// * `e` - The syntax tree to format
 ///
 /// # Examples
 ///
@@ -550,110 +470,81 @@ where
 ///
 /// #[derive(SyntaxFmt)]
 /// struct Expr<'src> {
+///     #[syntax(format = "({content})", pretty_format = "( {content} )")]
 ///     value: &'src str,
 /// }
 ///
 /// let expr = Expr { value: "42" };
-/// let output = format!("{}", syntax_fmt(&(), &expr));
-/// assert_eq!(output, "42");
+/// assert_eq!(format!("{}", syntax_fmt(&(), &expr)), "(42)");
+/// assert_eq!(format!("{}", syntax_fmt(&(), &expr).pretty()), "( 42 )");
 /// ```
 #[must_use]
 #[inline]
-pub fn syntax_fmt<'state, 'syn, State, T>(
-    state: &'state State,
-    syn: &'syn T,
-) -> SyntaxDisplay<'state, 'syn, State, T>
+pub fn syntax_fmt<'s, 'e, S, E>(
+    state: &'s S,
+    e: &'e E,
+) -> SyntaxDisplay<'s, 'e, S, E>
 where
-    'state: 'syn,
-    T: SyntaxFmt<State>,
+    E: SyntaxFmt<S>,
 {
-    SyntaxDisplay::new(state, syn)
+    SyntaxDisplay::new(state, e)
 }
 
-/// Formats a syntax tree in pretty printing mode.
+/// Formats a syntax tree with mutable state.
 ///
-/// Returns a [`SyntaxDisplay`] wrapper that implements `Display`. In pretty mode,
-/// formatting may include additional whitespace, newlines, and indentation.
+/// Returns a [`SyntaxDisplay`] wrapper that implements `Display`. This variant allows
+/// the state to be modified during formatting, useful for tracking generated identifiers,
+/// maintaining counters, or updating symbol tables.
+///
+/// Chain with `.pretty()` to enable pretty printing mode.
 ///
 /// # Arguments
 ///
-/// * `state` - User-defined state to pass through the formatting process
-/// * `syn` - The syntax tree to format
+/// * `state` - Mutable user-defined state to pass through the formatting process
+/// * `e` - The syntax tree to format
 ///
 /// # Examples
 ///
 /// ```
-/// use syntaxfmt::{SyntaxFmt, syntax_fmt, syntax_fmt_pretty};
+/// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext, syntax_fmt_mut};
 ///
-/// #[derive(SyntaxFmt)]
-/// struct Block<'src> {
-///     #[syntax(format = "{{{content}}}", pretty_format = "{{\n{content}\n}}")]
-///     body: &'src str,
+/// struct Counter {
+///     count: usize,
 /// }
 ///
-/// let block = Block { body: "code" };
+/// struct Item;
 ///
-/// assert_eq!(format!("{}", syntax_fmt(&(), &block)), "{code}");
-/// assert_eq!(format!("{}", syntax_fmt_pretty(&(), &block)), "{\ncode\n}");
+/// impl SyntaxFmt<Counter> for Item {
+///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+///         let count = ctx.state_mut().count;
+///         ctx.state_mut().count += 1;
+///         write!(ctx, "item_{}", count)
+///     }
+/// }
+///
+/// let mut state = Counter { count: 0 };
+/// let item = Item;
+/// assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item)), "item_0");
+/// assert_eq!(state.count, 1);
+///
+/// // Pretty printing with mutable state
+/// assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item).pretty()), "item_1");
+/// assert_eq!(state.count, 2);
 /// ```
 #[must_use]
 #[inline]
-pub fn syntax_fmt_pretty<'state, 'syn, State, T>(
-    state: &'state State,
-    syn: &'syn T,
-) -> SyntaxDisplay<'state, 'syn, State, T>
+pub fn syntax_fmt_mut<'s, 'e, S, E>(
+    state: &'s mut S,
+    e: &'e E,
+) -> SyntaxDisplay<'s, 'e, S, E>
 where
-    'state: 'syn,
-    T: SyntaxFmt<State>,
+    E: SyntaxFmt<S>,
 {
-    SyntaxDisplay::new_pretty(state, syn)
+    SyntaxDisplay::new_mut(state, e)
 }
 
 /// Trait for types that can be formatted as syntax.
-///
-/// This trait is typically implemented via the `#[derive(SyntaxFmt)]` macro, but can
-/// also be implemented manually for custom formatting logic.
-///
-/// # Type Parameters
-///
-/// * `State` - User-defined state type that is passed through the formatting process
-///
-/// # Associated Constants
-///
-/// * `DELIM` - Default delimiter between items (default: `","`)
-/// * `PRETTY_DELIM` - Delimiter used in pretty mode (default: `", "`)
-/// * `INDENT` - Indentation string (default: `"    "`)
-///
-/// # Examples
-///
-/// ## Automatic implementation via derive
-///
-/// ```
-/// use syntaxfmt::SyntaxFmt;
-///
-/// #[derive(SyntaxFmt)]
-/// struct Point {
-///     #[syntax(format = "x: {content}, ")]
-///     x: i32,
-///     #[syntax(format = "y: {content}")]
-///     y: i32,
-/// }
-/// ```
-///
-/// ## Manual implementation
-///
-/// ```
-/// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext};
-///
-/// struct Custom(String);
-///
-/// impl SyntaxFmt<()> for Custom {
-///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<()>) -> std::fmt::Result {
-///         write!(ctx, "Custom({})", self.0)
-///     }
-/// }
-/// ```
-pub trait SyntaxFmt<State> {
+pub trait SyntaxFmt<S> {
     /// Default delimiter between items in compact mode.
     const DELIM: &'static str = ",";
 
@@ -664,35 +555,15 @@ pub trait SyntaxFmt<State> {
     const INDENT: &'static str = "    ";
 
     /// Formats this value using the given context.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The formatting context
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use syntaxfmt::{SyntaxFmt, SyntaxFmtContext};
-    ///
-    /// struct MyType(i32);
-    ///
-    /// impl SyntaxFmt<()> for MyType {
-    ///     fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<()>) -> std::fmt::Result {
-    ///         write!(ctx, "MyType({})", self.0)
-    ///     }
-    /// }
-    /// ```
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<State>) -> FmtResult;
+    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<S>) -> FmtResult;
 }
 
 /// Blanket implementation for types implementing `Display`.
-///
-/// Any type that implements `Display` automatically implements `SyntaxFmt<State>` for any `State`.
-impl<State, T> SyntaxFmt<State> for T
+impl<S, E> SyntaxFmt<S> for E
 where
-    T: Display,
+    E: Display,
 {
-    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<State>) -> FmtResult {
+    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<S>) -> FmtResult {
         write!(ctx, "{}", *self)
     }
 }

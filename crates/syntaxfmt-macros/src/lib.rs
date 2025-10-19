@@ -41,7 +41,7 @@ pub fn derive_syntax_fmt(input: TokenStream) -> TokenStream {
             #delim_const
             #pretty_delim_const
 
-            fn syntax_fmt(&self, ctx: &mut ::syntaxfmt::SyntaxFmtContext<'_, '_, __SyntaxFmtState>) -> ::std::fmt::Result {
+            fn syntax_fmt(&self, ctx: &mut ::syntaxfmt::SyntaxFmtContext<__SyntaxFmtState>) -> ::std::fmt::Result {
                 #fmt_body
             }
         }
@@ -86,33 +86,14 @@ fn collect_field_types(data: &Data) -> Vec<syn::Type> {
 }
 
 fn collect_struct_field_types(fields: &Fields, types: &mut Vec<syn::Type>) {
-    let process_field = |field: &syn::Field| {
+    for field in fields.iter() {
         let attrs = parse_field_attrs(&field.attrs);
-        if !attrs.skip && !is_type_ident(&field.ty, "bool") {
-            let ty = extract_option_inner(&field.ty);
-            // If it's a collection type, extract the inner type
-            if let Some(inner_ty) = extract_collection_inner(&ty) {
-                types.push(inner_ty);
-            } else {
-                types.push(ty);
-            }
+        if attrs.skip || is_type_ident(&field.ty, "bool") {
+            continue;
         }
-    };
 
-    match fields {
-        Fields::Named(fields) => fields.named.iter().for_each(process_field),
-        Fields::Unnamed(fields) => {
-            for field in &fields.unnamed {
-                let ty = extract_option_inner(&field.ty);
-                // If it's a collection type, extract the inner type
-                if let Some(inner_ty) = extract_collection_inner(&ty) {
-                    types.push(inner_ty);
-                } else {
-                    types.push(ty);
-                }
-            }
-        }
-        Fields::Unit => {}
+        let ty = extract_option_inner(&field.ty);
+        types.push(extract_collection_inner(&ty).unwrap_or(ty));
     }
 }
 
@@ -131,37 +112,30 @@ fn extract_option_inner(ty: &syn::Type) -> syn::Type {
     ty.clone()
 }
 
-// Detect collection types and extract inner type
-// Returns Some(inner_type) if it's a Vec, slice reference, or array
 fn extract_collection_inner(ty: &syn::Type) -> Option<syn::Type> {
     match ty {
-        // Handle Vec<T>
         syn::Type::Path(type_path) => {
-            if let Some(segment) = type_path.path.segments.last() {
-                if segment.ident == "Vec" {
-                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return Some(inner_ty.clone());
-                        }
+            let segment = type_path.path.segments.last()?;
+            if segment.ident == "Vec" {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        return Some(inner_ty.clone());
                     }
                 }
             }
             None
         }
-        // Handle &[T] and &mut [T]
         syn::Type::Reference(type_ref) => {
             if let syn::Type::Slice(slice) = &*type_ref.elem {
                 return Some((*slice.elem).clone());
             }
             None
         }
-        // Handle [T; N]
         syn::Type::Array(array) => Some((*array.elem).clone()),
         _ => None,
     }
 }
 
-// Generate iteration code for collection types
 fn generate_collection_iteration(
     field_expr: &proc_macro2::TokenStream,
     inner_ty: &syn::Type,
@@ -191,7 +165,6 @@ fn generate_collection_iteration(
     }
 }
 
-// Helper to extract string literal from Meta::NameValue
 fn extract_str_literal(value: &syn::Expr) -> Option<String> {
     if let syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(s), .. }) = value {
         Some(s.value())
@@ -200,7 +173,6 @@ fn extract_str_literal(value: &syn::Expr) -> Option<String> {
     }
 }
 
-// Helper to parse two string attributes into a PrettyString
 fn parse_pretty_string_attrs(
     attrs: &[syn::Attribute],
     normal_name: &str,
@@ -310,18 +282,6 @@ impl PrettyString {
         let pretty = self.pretty.as_deref().or(self.normal.as_deref()).unwrap_or("");
         (normal.to_string(), pretty.to_string())
     }
-
-    fn has_content(&self) -> bool {
-        self.normal.is_some() || self.pretty.is_some()
-    }
-
-    fn has_normal(&self) -> bool {
-        self.normal.is_some()
-    }
-
-    fn has_pretty(&self) -> bool {
-        self.pretty.is_some()
-    }
 }
 
 #[derive(Default)]
@@ -334,7 +294,6 @@ struct FieldAttrs {
     skip: bool,
 }
 
-// Split format string by {content} placeholder, returning (before, after, has_placeholder)
 fn split_format_string(format_str: &str) -> (&str, &str, bool) {
     if let Some(pos) = format_str.find("{content}") {
         (&format_str[..pos], &format_str[pos + 9..], true)
@@ -343,42 +302,22 @@ fn split_format_string(format_str: &str) -> (&str, &str, bool) {
     }
 }
 
-// Build write statements for format string parts
-fn build_format_statements(
-    before: &str,
-    after: &str,
-    has_placeholder: bool,
+fn generate_default_content(
     field_expr: &proc_macro2::TokenStream,
     content_expr: Option<&syn::Expr>,
     field_ty: Option<&syn::Type>,
-) -> Vec<proc_macro2::TokenStream> {
-    let mut statements = Vec::new();
-
-    if !before.is_empty() {
-        statements.push(quote! { write!(ctx, #before)?; });
+) -> proc_macro2::TokenStream {
+    if let Some(content_fn) = content_expr {
+        return quote! { (#content_fn)(&#field_expr, ctx)?; };
     }
 
-    if has_placeholder {
-        if let Some(content_fn) = content_expr {
-            statements.push(quote! { (#content_fn)(&#field_expr, ctx)?; });
-        } else if let Some(ty) = field_ty {
-            // Check if this is a collection type
-            if let Some(inner_ty) = extract_collection_inner(ty) {
-                // Generate iteration code for collection
-                statements.push(generate_collection_iteration(field_expr, &inner_ty));
-            } else {
-                statements.push(quote! { #field_expr.syntax_fmt(ctx)?; });
-            }
-        } else {
-            statements.push(quote! { #field_expr.syntax_fmt(ctx)?; });
+    if let Some(ty) = field_ty {
+        if let Some(inner_ty) = extract_collection_inner(ty) {
+            return generate_collection_iteration(field_expr, &inner_ty);
         }
     }
 
-    if !after.is_empty() {
-        statements.push(quote! { write!(ctx, #after)?; });
-    }
-
-    statements
+    quote! { #field_expr.syntax_fmt(ctx)?; }
 }
 
 fn expand_format_string(
@@ -388,11 +327,23 @@ fn expand_format_string(
     field_ty: Option<&syn::Type>,
 ) -> proc_macro2::TokenStream {
     let (before, after, has_placeholder) = split_format_string(format_str);
-    let statements = build_format_statements(before, after, has_placeholder, field_expr, content_expr, field_ty);
+    let mut statements = Vec::new();
+
+    if !before.is_empty() {
+        statements.push(quote! { write!(ctx, #before)?; });
+    }
+
+    if has_placeholder {
+        statements.push(generate_default_content(field_expr, content_expr, field_ty));
+    }
+
+    if !after.is_empty() {
+        statements.push(quote! { write!(ctx, #after)?; });
+    }
+
     quote! { #(#statements)* }
 }
 
-// Generate conditional based on pretty mode
 fn pretty_conditional(
     normal: proc_macro2::TokenStream,
     pretty: proc_macro2::TokenStream,
@@ -410,7 +361,7 @@ fn wrap_with_outer_format(
     fmt_body: proc_macro2::TokenStream,
     outer_format: &PrettyString,
 ) -> proc_macro2::TokenStream {
-    if !outer_format.has_content() {
+    if outer_format.normal.is_none() && outer_format.pretty.is_none() {
         return fmt_body;
     }
 
@@ -426,18 +377,17 @@ fn wrap_with_outer_format(
             };
         }
 
+        if before.is_empty() && after.is_empty() {
+            return fmt_body.clone();
+        }
+
         if after.is_empty() {
-            return if before.is_empty() {
-                fmt_body.clone()
-            } else {
-                quote! {
-                    write!(ctx, #before)?;
-                    #fmt_body
-                }
+            return quote! {
+                write!(ctx, #before)?;
+                #fmt_body
             };
         }
 
-        // Have suffix, need to execute body and then add suffix
         quote! {
             write!(ctx, #before)?;
             (|| -> ::std::fmt::Result { #fmt_body })()?;
@@ -459,53 +409,33 @@ fn generate_format_output(
     content_expr: Option<&syn::Expr>,
     field_ty: Option<&syn::Type>,
 ) -> proc_macro2::TokenStream {
-    // Handle case with no format attributes at all
-    if !format.has_content() {
-        if let Some(content_fn) = content_expr {
-            return quote! { (#content_fn)(&#field_expr, ctx)?; };
-        }
-        // Check if this is a collection type
-        if let Some(ty) = field_ty {
-            if let Some(inner_ty) = extract_collection_inner(ty) {
-                return generate_collection_iteration(field_expr, &inner_ty);
-            }
-        }
-        return quote! { #field_expr.syntax_fmt(ctx)?; };
+    // No format specified - use default
+    if format.normal.is_none() && format.pretty.is_none() {
+        return generate_default_content(field_expr, content_expr, field_ty);
     }
 
-    // Handle case with only pretty_format specified
-    if !format.has_normal() && format.has_pretty() {
-        let default_behavior = if let Some(content_fn) = content_expr {
-            quote! { (#content_fn)(&#field_expr, ctx)?; }
-        } else if let Some(ty) = field_ty {
-            if let Some(inner_ty) = extract_collection_inner(ty) {
-                generate_collection_iteration(field_expr, &inner_ty)
-            } else {
-                quote! { #field_expr.syntax_fmt(ctx)?; }
-            }
-        } else {
-            quote! { #field_expr.syntax_fmt(ctx)?; }
-        };
+    let (normal_fmt, pretty_fmt) = format.get_pair();
 
-        let (_, pretty_fmt) = format.get_pair();
+    // Only pretty_format specified
+    if format.normal.is_none() {
+        let default_content = generate_default_content(field_expr, content_expr, field_ty);
         let pretty_write = expand_format_string(&pretty_fmt, field_expr, content_expr, field_ty);
-
         return quote! {
             if ctx.is_pretty() {
                 #pretty_write
             } else {
-                #default_behavior
+                #default_content
             }
         };
     }
 
-    let (normal_fmt, pretty_fmt) = format.get_pair();
+    // Normal format (with optional different pretty format)
     let normal_write = expand_format_string(&normal_fmt, field_expr, content_expr, field_ty);
-    let pretty_write = expand_format_string(&pretty_fmt, field_expr, content_expr, field_ty);
 
     if normal_fmt == pretty_fmt {
         normal_write
     } else {
+        let pretty_write = expand_format_string(&pretty_fmt, field_expr, content_expr, field_ty);
         pretty_conditional(normal_write, pretty_write)
     }
 }
@@ -514,18 +444,20 @@ fn generate_struct_fmt(fields: &Fields) -> proc_macro2::TokenStream {
     match fields {
         Fields::Named(fields_named) => generate_named_fields_fmt(&fields_named.named),
         Fields::Unnamed(fields_unnamed) if fields_unnamed.unnamed.len() == 1 => {
-            generate_tuple_field_fmt(fields_unnamed.unnamed.first().unwrap())
+            let field = fields_unnamed.unnamed.first().unwrap();
+            let attrs = parse_field_attrs(&field.attrs);
+            let format_output = generate_format_output(
+                &quote! { self.0 },
+                &attrs.format,
+                attrs.content.as_ref(),
+                Some(&field.ty),
+            );
+            quote! {
+                #format_output
+                Ok(())
+            }
         }
         Fields::Unnamed(_) | Fields::Unit => quote! { Ok(()) },
-    }
-}
-
-// Helper to wrap code in pretty-mode conditional
-fn wrap_in_pretty_check(code: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    quote! {
-        if ctx.is_pretty() {
-            #code
-        }
     }
 }
 
@@ -547,9 +479,8 @@ fn generate_named_fields_fmt(
                 &quote! { &true },
                 &attrs.format,
                 attrs.content.as_ref(),
-                None, // bool fields don't have a real type to pass
+                None,
             );
-
             statements.push(quote! {
                 if self.#field_name {
                     #format_output
@@ -564,7 +495,6 @@ fn generate_named_fields_fmt(
                 attrs.content.as_ref(),
                 Some(&inner_ty),
             );
-
             statements.push(quote! {
                 if let Some(#field_name) = &self.#field_name {
                     #format_output
@@ -572,15 +502,22 @@ fn generate_named_fields_fmt(
             });
         } else {
             let field_expr = quote! { self.#field_name };
-
             let mut field_statements = Vec::new();
 
             if attrs.indent {
-                field_statements.push(wrap_in_pretty_check(quote! { ctx.indent(Self::INDENT)?; }));
+                field_statements.push(quote! {
+                    if ctx.is_pretty() {
+                        ctx.indent(Self::INDENT)?;
+                    }
+                });
             }
 
             if attrs.indent_inc {
-                field_statements.push(wrap_in_pretty_check(quote! { ctx.inc_indent(); }));
+                field_statements.push(quote! {
+                    if ctx.is_pretty() {
+                        ctx.inc_indent();
+                    }
+                });
             }
 
             let format_output = generate_format_output(
@@ -593,10 +530,13 @@ fn generate_named_fields_fmt(
             field_statements.push(format_output);
 
             if attrs.indent_inc {
-                field_statements.push(wrap_in_pretty_check(quote! { ctx.dec_indent(); }));
+                field_statements.push(quote! {
+                    if ctx.is_pretty() {
+                        ctx.dec_indent();
+                    }
+                });
             }
 
-            // If empty_suffix is specified, wrap in an is_empty() check
             if let Some(empty_suffix) = &attrs.empty_suffix {
                 statements.push(quote! {
                     if self.#field_name.is_empty() {
@@ -613,21 +553,6 @@ fn generate_named_fields_fmt(
 
     statements.push(quote! { Ok(()) });
     quote! { #(#statements)* }
-}
-
-fn generate_tuple_field_fmt(field: &syn::Field) -> proc_macro2::TokenStream {
-    let attrs = parse_field_attrs(&field.attrs);
-    let format_output = generate_format_output(
-        &quote! { self.0 },
-        &attrs.format,
-        attrs.content.as_ref(),
-        Some(&field.ty),
-    );
-
-    quote! {
-        #format_output
-        Ok(())
-    }
 }
 
 fn generate_enum_fmt(
@@ -662,7 +587,7 @@ fn generate_enum_fmt(
                 }
             }
             Fields::Unit => {
-                if attrs.format.has_content() {
+                if attrs.format.normal.is_some() || attrs.format.pretty.is_some() {
                     let format_output = generate_format_output(
                         &quote! { "" },
                         &attrs.format,

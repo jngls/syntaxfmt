@@ -1,5 +1,5 @@
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, syntax_fmt_pretty, SyntaxFmt, SyntaxFmtContext};
+use syntaxfmt::{syntax_fmt, syntax_fmt_mut, SyntaxFmt, SyntaxFmtContext};
 
 #[track_caller]
 fn assert_formats<State, T: SyntaxFmt<State>>(
@@ -9,7 +9,7 @@ fn assert_formats<State, T: SyntaxFmt<State>>(
     expected_pretty: &str,
 ) {
     assert_eq!(format!("{}", syntax_fmt(state, value)), expected_normal);
-    assert_eq!(format!("{}", syntax_fmt_pretty(state, value)), expected_pretty);
+    assert_eq!(format!("{}", syntax_fmt(state, value).pretty()), expected_pretty);
 }
 
 // Shared test types
@@ -70,17 +70,10 @@ struct WithOptional<'src> {
 
 #[test]
 fn test_optional_field() {
-    let with = WithOptional {
-        required: "req",
-        optional: Some("opt"),
-    };
-    assert_formats(&(), &with, "required: req; optional: opt", "required: req;\noptional: opt");
-
-    let without = WithOptional {
-        required: "req",
-        optional: None,
-    };
-    assert_formats(&(), &without, "required: req;", "required: req;\n");
+    assert_formats(&(), &WithOptional { required: "req", optional: Some("opt") },
+        "required: req; optional: opt", "required: req;\noptional: opt");
+    assert_formats(&(), &WithOptional { required: "req", optional: None },
+        "required: req;", "required: req;\n");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -98,57 +91,6 @@ fn test_enum() {
 }
 
 #[derive(SyntaxFmtDerive)]
-struct ModuleLike<'src> {
-    #[syntax(format = "mod {content}")]
-    name: &'src str,
-    #[syntax(
-        format = " {{{content}}}",
-        pretty_format = " {{\n{content}}}",
-        indent_inc
-    )]
-    items: Items<'src>,
-}
-
-#[test]
-fn test_indent_inc_with_module() {
-    let empty = ModuleLike {
-        name: "foo",
-        items: Items(vec![]),
-    };
-    assert_formats(&(), &empty, "mod foo {}", "mod foo {\n}");
-
-    let with_items = ModuleLike {
-        name: "foo",
-        items: Items(vec![Statement("item1"), Statement("item2")]),
-    };
-    assert_formats(
-        &(),
-        &with_items,
-        "mod foo {item1, item2}",
-        "mod foo {\n    item1\n    item2\n}"
-    );
-}
-
-#[derive(SyntaxFmtDerive)]
-struct Block<'src> {
-    #[syntax(format = "{{\n{content}}}", pretty_format = "{{\n{content}}}", indent, indent_inc)]
-    statements: Items<'src>,
-}
-
-#[test]
-fn test_indent_attribute() {
-    let b = Block {
-        statements: Items(vec![Statement("let x = 1;"), Statement("let y = 2;")]),
-    };
-    assert_formats(
-        &(),
-        &b,
-        "{\nlet x = 1;, let y = 2;}",
-        "{\n    let x = 1;\n    let y = 2;\n}"
-    );
-}
-
-#[derive(SyntaxFmtDerive)]
 struct FunctionDecl<'src> {
     #[syntax(format = "pub ")]
     is_pub: bool,
@@ -158,17 +100,8 @@ struct FunctionDecl<'src> {
 
 #[test]
 fn test_bool_field() {
-    let public = FunctionDecl {
-        is_pub: true,
-        name: "test",
-    };
-    assert_formats(&(), &public, "pub fn test", "pub fn test");
-
-    let private = FunctionDecl {
-        is_pub: false,
-        name: "test",
-    };
-    assert_formats(&(), &private, "fn test", "fn test");
+    assert_formats(&(), &FunctionDecl { is_pub: true, name: "test" }, "pub fn test", "pub fn test");
+    assert_formats(&(), &FunctionDecl { is_pub: false, name: "test" }, "fn test", "fn test");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -180,8 +113,7 @@ struct WithFormatLiteral<'src> {
 
 #[test]
 fn test_format_literal() {
-    let s = WithFormatLiteral { name: "foo" };
-    assert_formats(&(), &s, "name: CUSTOM", "name: CUSTOM");
+    assert_formats(&(), &WithFormatLiteral { name: "foo" }, "name: CUSTOM", "name: CUSTOM");
 }
 
 // Custom formatters
@@ -189,28 +121,18 @@ fn custom_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> st
     write!(ctx, "{{{}}} ", value)
 }
 
-fn uppercase_formatter<State>(value: &str, ctx: &mut SyntaxFmtContext<State>) -> std::fmt::Result {
-    write!(ctx, "{}", value.to_uppercase())
-}
-
 #[derive(SyntaxFmtDerive)]
-struct WithCustomFormatters<'src> {
+struct WithCustomFormatter<'src> {
     #[syntax(format = "value: {content}", content = custom_formatter)]
     value: &'src str,
-    #[syntax(content = uppercase_formatter)]
-    text: &'src str,
 }
 
 #[test]
-fn test_custom_formatters() {
-    let s = WithCustomFormatters {
-        value: "test",
-        text: "hello",
-    };
-    assert_formats(&(), &s, "value: {test} HELLO", "value: {test} HELLO");
+fn test_custom_formatter() {
+    assert_formats(&(), &WithCustomFormatter { value: "test" }, "value: {test} ", "value: {test} ");
 }
 
-// Stateful formatter test
+// Stateful formatter
 trait NameResolver {
     fn resolve_name(&self, id: &str) -> String;
 }
@@ -237,12 +159,10 @@ struct WithStatefulFormatter<'src> {
 
 #[test]
 fn test_stateful_formatter() {
-    let s = WithStatefulFormatter { id: "foo" };
-    let resolver = TestResolver;
-    assert_formats(&resolver, &s, "id: resolved_foo", "id: resolved_foo");
+    assert_formats(&TestResolver, &WithStatefulFormatter { id: "foo" }, "id: resolved_foo", "id: resolved_foo");
 }
 
-// Empty suffix test
+// Module with indentation and empty_suffix
 #[derive(SyntaxFmtDerive)]
 struct Module<'src> {
     #[syntax(format = "mod {content}")]
@@ -257,28 +177,16 @@ struct Module<'src> {
 }
 
 #[test]
-fn test_empty_suffix() {
-    let empty_mod = Module {
-        name: "empty",
-        items: Items(vec![]),
-    };
-    assert_formats(&(), &empty_mod, "mod empty;", "mod empty;");
-
-    let with_items = Module {
-        name: "lib",
-        items: Items(vec![Statement("fn main() {}")]),
-    };
-    assert_formats(
-        &(),
-        &with_items,
-        "mod lib {fn main() {}}",
-        "mod lib {\n    fn main() {}\n}"
-    );
+fn test_indent_and_empty_suffix() {
+    assert_formats(&(), &Module { name: "empty", items: Items(vec![]) },
+        "mod empty;", "mod empty;");
+    assert_formats(&(), &Module { name: "lib", items: Items(vec![Statement("item1"), Statement("item2")]) },
+        "mod lib {item1, item2}", "mod lib {\n    item1\n    item2\n}");
 }
 
-// Outer format tests
+// Outer format with pretty variant
 #[derive(SyntaxFmtDerive)]
-#[syntax(format = "&{content}")]
+#[syntax(format = "&{content}", pretty_format = "ref {content}")]
 struct RefType<'src> {
     #[syntax(format = "mut ")]
     is_mut: bool,
@@ -287,75 +195,34 @@ struct RefType<'src> {
 
 #[test]
 fn test_outer_format() {
-    let mutable = RefType {
-        is_mut: true,
-        value: "x",
-    };
-    assert_formats(&(), &mutable, "&mut x", "&mut x");
-
-    let immutable = RefType {
-        is_mut: false,
-        value: "x",
-    };
-    assert_formats(&(), &immutable, "&x", "&x");
+    assert_formats(&(), &RefType { is_mut: true, value: "x" }, "&mut x", "ref mut x");
+    assert_formats(&(), &RefType { is_mut: false, value: "x" }, "&x", "ref x");
 }
 
-#[derive(SyntaxFmtDerive)]
-#[syntax(format = "({content})", pretty_format = "[ {content} ]")]
-struct Wrapped<'src> {
-    value: &'src str,
-}
-
-#[test]
-fn test_outer_format_pretty_variant() {
-    let w = Wrapped { value: "test" };
-    assert_formats(&(), &w, "(test)", "[ test ]");
-}
-
-// Collection types test
+// Collections (Vec, slice, array all work the same)
 #[derive(SyntaxFmtDerive)]
 #[syntax(delim = ", ", pretty_delim = ", ")]
 struct Ident<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
-struct Path<'src> {
-    segments: Vec<Ident<'src>>,
+struct Collections<'src> {
+    vec: Vec<Ident<'src>>,
+    slice: &'src [Ident<'src>],
+    array: [Ident<'src>; 2],
 }
 
 #[test]
-fn test_collection_vec() {
-    let path = Path {
-        segments: vec![Ident("foo"), Ident("bar"), Ident("baz")],
+fn test_collections() {
+    let idents = [Ident("a"), Ident("b")];
+    let c = Collections {
+        vec: vec![Ident("foo"), Ident("bar")],
+        slice: &idents,
+        array: [Ident("x"), Ident("y")],
     };
-    assert_formats(&(), &path, "foo, bar, baz", "foo, bar, baz");
+    assert_formats(&(), &c, "foo, bara, bx, y", "foo, bara, bx, y");
 }
 
-#[derive(SyntaxFmtDerive)]
-struct PathSlice<'src> {
-    segments: &'src [Ident<'src>],
-}
-
-#[test]
-fn test_collection_slice() {
-    let idents = [Ident("a"), Ident("b"), Ident("c")];
-    let path = PathSlice { segments: &idents };
-    assert_formats(&(), &path, "a, b, c", "a, b, c");
-}
-
-#[derive(SyntaxFmtDerive)]
-struct PathArray<'src> {
-    segments: [Ident<'src>; 3],
-}
-
-#[test]
-fn test_collection_array() {
-    let path = PathArray {
-        segments: [Ident("x"), Ident("y"), Ident("z")],
-    };
-    assert_formats(&(), &path, "x, y, z", "x, y, z");
-}
-
-// Test collection with custom delimiters
+// Custom delimiter
 #[derive(SyntaxFmtDerive)]
 #[syntax(delim = "::", pretty_delim = " :: ")]
 struct PathSegment<'src>(&'src str);
@@ -373,7 +240,7 @@ fn test_collection_with_custom_delim() {
     assert_formats(&(), &path, "std::collections::HashMap", "std :: collections :: HashMap");
 }
 
-// Test collection with prefix/suffix formatting
+// Collection with wrapper and indentation
 #[derive(SyntaxFmtDerive)]
 #[syntax(delim = ", ", pretty_delim = ",\n")]
 struct Item<'src>(&'src str);
@@ -386,8 +253,46 @@ struct List<'src> {
 
 #[test]
 fn test_collection_with_wrapper() {
-    let list = List {
-        items: vec![Item("a"), Item("b"), Item("c")],
-    };
-    assert_formats(&(), &list, "[a, b, c]", "[\n    a,\n    b,\n    c\n]");
+    assert_formats(&(), &List { items: vec![Item("a"), Item("b"), Item("c")] },
+        "[a, b, c]", "[\n    a,\n    b,\n    c\n]");
+}
+
+// Mutable state
+struct Counter {
+    count: usize,
+}
+
+struct CountedItem;
+
+impl SyntaxFmt<Counter> for CountedItem {
+    fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+        let count = ctx.state_mut().count;
+        ctx.state_mut().count += 1;
+        write!(ctx, "item_{}", count)
+    }
+}
+
+#[test]
+fn test_mutable_state() {
+    let mut state = Counter { count: 0 };
+    let item = CountedItem;
+
+    assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item)), "item_0");
+    assert_eq!(state.count, 1);
+    assert_eq!(format!("{}", syntax_fmt_mut(&mut state, &item).pretty()), "item_1");
+    assert_eq!(state.count, 2);
+}
+
+#[test]
+#[should_panic(expected = "StateRef: state is immutable")]
+fn test_immutable_state_panics_on_mut_access() {
+    struct BadItem;
+    impl SyntaxFmt<Counter> for BadItem {
+        fn syntax_fmt(&self, ctx: &mut SyntaxFmtContext<Counter>) -> std::fmt::Result {
+            ctx.state_mut().count += 1; // Should panic!
+            Ok(())
+        }
+    }
+
+    let _ = format!("{}", syntax_fmt(&Counter { count: 0 }, &BadItem));
 }
