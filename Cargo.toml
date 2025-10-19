@@ -24,4 +24,4 @@ default = [
 derive = [ "syntaxfmt-macros" ]
 
 [dependencies]
-syntaxfmt-macros = { path = "crates/syntaxfmt-macros", optional = true }
+syntaxfmt-macros = { version = "0.1.0", path = "crates/syntaxfmt-macros", optional = true }
