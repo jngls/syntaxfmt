@@ -1,10 +1,9 @@
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, SyntaxFmt, SyntaxFormatter};
+use syntaxfmt::{syntax_fmt, DualStr, SyntaxFmt, SyntaxFormatter};
 
 // Shared test types
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = ", ", pretty_delim = "")]
-struct Statement<'src>(#[syntax(pretty_format = "{content}\n")] &'src str);
+struct Statement<'src>(#[syntax(format = ("{content}", "{content}\n"))] &'src str);
 
 struct Items<'src>(Vec<Statement<'src>>);
 
@@ -19,20 +18,17 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
         if self.is_empty() {
             return Ok(());
         }
-        let delim = if ctx.is_pretty() {
-            <Statement as SyntaxFmt<()>>::PRETTY_DELIM
-        } else {
-            <Statement as SyntaxFmt<()>>::DELIM
-        };
+        ctx.push_delim(DualStr::new(", ", ""));
         for (i, item) in self.0.iter().enumerate() {
             if i > 0 {
-                write!(ctx, "{}", delim)?;
+                ctx.write_delim()?;
             }
             if ctx.is_pretty() {
-                ctx.indent()?;
+                ctx.write_indent()?;
             }
             item.syntax_fmt(ctx)?;
         }
+        ctx.pop_delim();
         Ok(())
     }
 }
@@ -52,9 +48,9 @@ fn test_basic_struct() {
 
 #[derive(SyntaxFmtDerive)]
 struct WithOptional<'src> {
-    #[syntax(format = "required: {content};", pretty_format = "required: {content};\n")]
+    #[syntax(format = ("required: {content};", "required: {content};\n"))]
     required: &'src str,
-    #[syntax(format = " optional: {content}", pretty_format = "optional: {content}")]
+    #[syntax(format = (" optional: {content}", "optional: {content}"))]
     optional: Option<&'src str>,
 }
 
@@ -70,7 +66,6 @@ fn test_optional_field() {
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = "::", pretty_delim = "::")]
 enum SimpleEnum<'src> {
     #[syntax(format = "super")]
     Super,
@@ -153,7 +148,7 @@ fn resolve_formatter<State: NameResolver>(value: &str, ctx: &mut SyntaxFormatter
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(state_bound = "NameResolver")]
+#[syntax(state_bound = NameResolver)]
 struct WithStatefulFormatter<'src> {
     #[syntax(format = "id: {content}", content = resolve_formatter)]
     id: &'src str,
@@ -166,15 +161,14 @@ fn test_stateful_formatter() {
     assert_eq!(format!("{}", syntax_fmt(&WithStatefulFormatter { id: "foo" }).state_mut(&mut resolver)), "id: resolved_foo");
 }
 
-// Module with indentation and empty_suffix
+// Module with indentation and none output
 #[derive(SyntaxFmtDerive)]
 struct Module<'src> {
     #[syntax(format = "mod {content}")]
     name: &'src str,
     #[syntax(
-        format = " {{{content}}}",
-        pretty_format = " {{\n{content}}}",
-        empty_suffix = ";",
+        format = (" {{{content}}}", " {{\n{content}}}"),
+        none = ";",
         indent_region
     )]
     items: Items<'src>,
@@ -193,7 +187,7 @@ fn test_indent_and_empty_suffix() {
 
 // Outer format with pretty variant
 #[derive(SyntaxFmtDerive)]
-#[syntax(format = "&{content}", pretty_format = "ref {content}")]
+#[syntax(format = ("&{content}", "ref {content}"))]
 struct RefType<'src> {
     #[syntax(format = "mut ")]
     is_mut: bool,
@@ -213,13 +207,15 @@ fn test_outer_format() {
 
 // Collections (Vec, slice, array all work the same)
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = ", ", pretty_delim = ", ")]
 struct Ident<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
 struct Collections<'src> {
+    #[syntax(delim = ", ")]
     vec: Vec<Ident<'src>>,
+    #[syntax(delim = ", ")]
     slice: &'src [Ident<'src>],
+    #[syntax(delim = ", ")]
     array: [Ident<'src>; 2],
 }
 
@@ -237,11 +233,11 @@ fn test_collections() {
 
 // Custom delimiter
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = "::", pretty_delim = " :: ")]
 struct PathSegment<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
 struct QualifiedPath<'src> {
+    #[syntax(delim = ("::", " :: "))]
     segments: Vec<PathSegment<'src>>,
 }
 
@@ -256,12 +252,11 @@ fn test_collection_with_custom_delim() {
 
 // Collection with wrapper and indentation
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = ", ", pretty_delim = ",\n")]
 struct Item<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
 struct List<'src> {
-    #[syntax(format = "[{content}]", pretty_format = "[\n{content}\n]", indent_region)]
+    #[syntax(format = ("[{content}]", "[\n{content}\n]"), indent_region, delim = (", ", ",\n"))]
     items: Vec<Item<'src>>,
 }
 

@@ -199,17 +199,17 @@
 //! ## Collection formatting
 //!
 //! Collections (`Vec<T>`, `&[T]`, `[T; N]`) are automatically formatted by iterating over their
-//! elements and using the element type's delimiter configuration.
+//! elements and using the delimiter specified by the nearest outer delimiter attribute.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! #[syntax(delim = "::", pretty_delim = " :: ")]
 //! struct Segment<'src>(&'src str);
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Path<'src> {
+//!     #[syntax(delim = "::", pretty_delim = " :: ")]
 //!     segments: Vec<Segment<'src>>,
 //! }
 //!
@@ -234,8 +234,8 @@
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
 //!
-//! fn quote_formatter<S>(value: &str, ctx: &mut SyntaxFormatter<S>) -> std::fmt::Result {
-//!     write!(ctx, "\"{}\"", value)
+//! fn quote_formatter<S>(value: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+//!     write!(f, "\"{}\"", value)
 //! }
 //!
 //! #[derive(SyntaxFmt)]
@@ -275,9 +275,9 @@
 //! }
 //!
 //! impl<'src> SyntaxFmt<VarTracker> for VarDecl<'src> {
-//!     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<VarTracker>) -> std::fmt::Result {
-//!         let id = ctx.state_mut().allocate();
-//!         write!(ctx, "let {}_{} = ", self.name, id)
+//!     fn syntax_fmt(&self, f: &mut SyntaxFormatter<VarTracker>) -> std::fmt::Result {
+//!         let id = f.state_mut().allocate();
+//!         write!(f, "let {}_{} = ", self.name, id)
 //!     }
 //! }
 //!
@@ -291,13 +291,11 @@
 
 use core::panic;
 use std::cell::{Ref, RefCell, RefMut};
+use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
 
 pub use syntaxfmt_macros::SyntaxFmt;
-
-// Static unit value for default state
-static UNIT_STATE: () = ();
 
 // Holds state reference
 enum StateRef<'s, S> {
@@ -347,37 +345,76 @@ impl<'s, S> StateRef<'s, S> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DualStr(&'static str, &'static str);
+
+impl DualStr {
+    #[must_use]
+    #[inline(always)]
+    pub fn new(normal: &'static str, pretty: &'static str) -> Self {
+        Self(normal, pretty)
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn new_normal(normal: &'static str) -> Self {
+        Self(normal, "")
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn new_pretty(pretty: &'static str) -> Self {
+        Self("", pretty)
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn normal(&self) -> &'static str {
+        self.0
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn pretty(&self) -> &'static str {
+        self.1
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn get(&self, pretty: bool) -> &'static str {
+        if pretty {
+            self.pretty()
+        } else {
+            self.normal()
+        }
+    }
+}
+
 /// Context passed to formatting implementations, containing the formatter and formatting state.
 pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     f: &'f mut Formatter<'w>,
     state: &'sr RefCell<StateRef<'s, S>>,
-    ind: usize,
     pretty: bool,
-    indent: &'static str,
+    single_indent: DualStr,
+    indent: (String, String),
+    delim_stack: Vec<DualStr>,
+    fmt_info_stack: Vec<(DualStr, DualStr, bool)>,
+    none: Option<DualStr>,
 }
 
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: &'static str) -> Self {
+    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: DualStr, pretty: bool) -> Self {
         Self {
             f,
             state,
-            ind: 0,
-            pretty: false,
-            indent,
-        }
-    }
-
-    #[must_use]
-    #[inline]
-    fn new_pretty(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: &'static str) -> Self {
-        Self {
-            f,
-            state,
-            ind: 0,
-            pretty: true,
-            indent,
+            pretty,
+            single_indent: indent,
+            indent: (String::new(), String::new()),
+            delim_stack: Vec::new(),
+            fmt_info_stack: Vec::new(),
+            none: None,
         }
     }
 
@@ -403,22 +440,109 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         RefMut::map(self.state.borrow_mut(), |s| s.as_mut())
     }
 
-    /// Writes the current indentation to the output.
+    /// Writes a dual string to the formatter based on prettiness.
+    #[must_use]
     #[inline]
-    pub fn indent(&mut self) -> FmtResult {
-        write!(self.f, "{}", self.indent.repeat(self.ind))
+    pub fn write_dual_str(&mut self, dual_str: DualStr) -> FmtResult {
+        write!(self.f, "{}", dual_str.get(self.pretty))
+    }
+
+    /// Pushes format info (prefix, suffix, want_content) onto the stack.
+    #[inline]
+    pub fn push_fmt_info(&mut self, prefix: DualStr, suffix: DualStr, want_content: bool) {
+        self.fmt_info_stack.push((prefix, suffix, want_content));
+    }
+
+    /// Pops format info from the stack.
+    #[inline]
+    pub fn pop_fmt_info(&mut self) {
+        self.fmt_info_stack.pop();
+    }
+
+    /// Writes the current prefix from the format info stack.
+    #[inline]
+    pub fn write_prefix(&mut self) -> FmtResult {
+        if let Some((prefix, _, _)) = self.fmt_info_stack.last() {
+            write!(self.f, "{}", prefix.get(self.pretty))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Writes the current suffix from the format info stack.
+    #[inline]
+    pub fn write_suffix(&mut self) -> FmtResult {
+        if let Some((_, suffix, _)) = self.fmt_info_stack.last() {
+            write!(self.f, "{}", suffix.get(self.pretty))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Returns true if the current format info wants content.
+    #[must_use]
+    #[inline]
+    pub fn want_content(&self) -> bool {
+        self.fmt_info_stack.last().map_or(true, |(_, _, wants)| *wants)
     }
 
     /// Increases the indentation level by one.
     #[inline]
-    pub fn inc_indent(&mut self) {
-        self.ind += 1;
+    pub fn push_indent(&mut self) {
+        self.indent.0.push_str(self.single_indent.normal());
+        self.indent.1.push_str(self.single_indent.pretty());
     }
 
     /// Decreases the indentation level by one.
     #[inline]
-    pub fn dec_indent(&mut self) {
-        self.ind = self.ind.saturating_sub(1);
+    pub fn pop_indent(&mut self) {
+        let normal_len = self.single_indent.normal().len();
+        let pretty_len = self.single_indent.pretty().len();
+        self.indent.0.truncate(self.indent.0.len() - normal_len);
+        self.indent.1.truncate(self.indent.1.len() - pretty_len);
+    }
+    
+    /// Writes the current indentation to the output.
+    #[inline]
+    pub fn write_indent(&mut self) -> FmtResult {
+        write!(self.f, "{}", if self.is_pretty() { &self.indent.1 } else { &self.indent.0 })
+    }
+
+    /// Pushes a new delimiter pair onto the delimiter stack.
+    #[inline]
+    pub fn push_delim(&mut self, delim: DualStr) {
+        self.delim_stack.push(delim);
+    }
+
+    /// Pops the top delimiter pair from the delimiter stack.
+    #[inline]
+    pub fn pop_delim(&mut self) {
+        self.delim_stack.pop();
+    }
+
+    /// Writes the current delimiter to the output based on pretty mode.
+    #[inline]
+    pub fn write_delim(&mut self) -> FmtResult {
+        let delim = self.delim_stack.last().copied();
+        let delim = delim.unwrap_or(DualStr::new(",", ", "));
+        write!(self.f, "{}", delim.get(self.pretty))
+    }
+
+    /// Sets empty exit flag (usually for purposes of checking for None, false, or is_empty(), and exiting early)
+    pub fn set_none(&mut self, suffix: DualStr) {
+        self.none = Some(suffix);
+    }
+
+    /// Clears empty exit flag (in case field didn't take it)
+    pub fn clear_none(&mut self) {
+        self.none = None;
+    }
+
+    /// Consumes and returns empty exit (with suffix)
+    #[must_use]
+    #[inline]
+    pub fn take_none(&mut self) -> Option<DualStr> {
+        self.none.take()
     }
 }
 
@@ -442,8 +566,8 @@ impl<'sr, 's, 'f, 'w, S> DerefMut for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 pub struct SyntaxDisplay<'s, 'e, S, E> {
     state: RefCell<StateRef<'s, S>>,
     elem: &'e E,
+    indent: DualStr,
     pretty: bool,
-    indent: &'static str,
 }
 
 impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
@@ -454,8 +578,8 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
         SyntaxDisplay {
             state: RefCell::new(StateRef::new_ref(state)),
             elem: self.elem,
-            pretty: self.pretty,
             indent: self.indent,
+            pretty: self.pretty,
         }
     }
 
@@ -466,8 +590,8 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
         SyntaxDisplay {
             state: RefCell::new(StateRef::new_mut(state)),
             elem: self.elem,
-            pretty: self.pretty,
             indent: self.indent,
+            pretty: self.pretty,
         }
     }
 
@@ -482,7 +606,7 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
     /// Set the indentation string (default is four spaces).
     #[must_use]
     #[inline]
-    pub fn indent(mut self, indent: &'static str) -> Self {
+    pub fn indent(mut self, indent: DualStr) -> Self {
         self.indent = indent;
         self
     }
@@ -493,12 +617,8 @@ where
     E: SyntaxFmt<S>,
 {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        let mut ctx = if self.pretty {
-            SyntaxFormatter::new_pretty(f, &self.state, self.indent)
-        } else {
-            SyntaxFormatter::new(f, &self.state, self.indent)
-        };
-        self.elem.syntax_fmt(&mut ctx)
+        let mut f = SyntaxFormatter::new(f, &self.state, self.indent, self.pretty);
+        self.elem.syntax_fmt(&mut f)
     }
 }
 
@@ -543,13 +663,13 @@ where
 /// struct Item;
 ///
 /// impl SyntaxFmt<Counter> for Item {
-///     fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
-///         let count = ctx.state().count;
-///         ctx.state_mut().count += 1;
-///         if ctx.is_pretty() {
-///             write!(ctx, "pretty_item_{}", count)
+///     fn syntax_fmt(&self, f: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
+///         let count = f.state().count;
+///         f.state_mut().count += 1;
+///         if f.is_pretty() {
+///             write!(f, "pretty_item_{}", count)
 ///         } else {
-///             write!(ctx, "item_{}", count)
+///             write!(f, "item_{}", count)
 ///         }
 ///     }
 /// }
@@ -564,32 +684,217 @@ where
 #[must_use]
 #[inline]
 pub fn syntax_fmt<'e, E>(elem: &'e E) -> SyntaxDisplay<'static, 'e, (), E> {
+    const UNIT_STATE: () = ();
     SyntaxDisplay {
         state: RefCell::new(StateRef::new_none(&UNIT_STATE)),
         elem,
         pretty: false,
-        indent: "    ",
+        indent: DualStr::new("", "    "),
     }
 }
 
 /// Trait for types that can be formatted as syntax.
 pub trait SyntaxFmt<S> {
-    /// Default delimiter between items in compact mode.
-    const DELIM: &'static str = ",";
-
-    /// Delimiter used in pretty printing mode.
-    const PRETTY_DELIM: &'static str = ", ";
-
     /// Formats this value using the given context.
-    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<S>) -> FmtResult;
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult;
 }
 
-/// Blanket implementation for types implementing `Display`.
-impl<S, E> SyntaxFmt<S> for E
-where
-    E: Display,
-{
-    fn syntax_fmt(&self, ctx: &mut SyntaxFormatter<S>) -> FmtResult {
-        write!(ctx, "{}", *self)
+// Implement SyntaxFmt for common primitive types
+macro_rules! impl_syntax_fmt_display {
+    ($($ty:ty),*) => {
+        $(
+            impl<S> SyntaxFmt<S> for $ty {
+                fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+                    write!(f, "{}", self)
+                }
+            }
+        )*
+    };
+}
+
+impl_syntax_fmt_display!(
+    i8, i16, i32, i64, i128, isize,
+    u8, u16, u32, u64, u128, usize,
+    f32, f64,
+    char,
+    str, String // #TODO OsStr, OsString
+);
+
+impl<S> SyntaxFmt<S> for bool {
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        if let Some(suffix) = f.take_none() {
+            if !*self {
+                return f.write_dual_str(suffix);
+            }
+        }
+
+        f.write_prefix()?;
+        if f.want_content() {
+            write!(f, "{}", *self)?;
+        }
+        f.write_suffix()?;
+        Ok(())
     }
 }
+
+impl<S, E> SyntaxFmt<S> for Option<E> where E: SyntaxFmt<S> {
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        if let Some(suffix) = f.take_none() {
+            if self.is_none() {
+                return f.write_dual_str(suffix);
+            }
+        }
+
+        if let Some(value) = self {
+            f.write_prefix()?;
+            if f.want_content() {
+                value.syntax_fmt(f)?;
+            }
+            f.write_suffix()?;
+        }
+
+        Ok(())
+    }
+}
+
+// Implement SyntaxFmt for collections
+impl<S, E> SyntaxFmt<S> for Vec<E>
+where
+    E: SyntaxFmt<S>,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        self.as_slice().syntax_fmt(f)
+    }
+}
+
+impl<S, E> SyntaxFmt<S> for [E]
+where
+    E: SyntaxFmt<S>,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        if let Some(suffix) = f.take_none() {
+            if self.is_empty() {
+                return f.write_dual_str(suffix);
+            }
+        }
+
+        f.write_prefix()?;
+        if f.want_content() {
+            for (i, elem) in self.iter().enumerate() {
+                if i > 0 {
+                    f.write_delim()?;
+                }
+                if f.is_pretty() {
+                    // This might need some work
+                    // maybe a write_newline function which deals with indentation?
+                    f.write_indent()?;
+                }
+                elem.syntax_fmt(f)?;
+            }
+        }
+        f.write_suffix()?;
+        Ok(())
+    }
+}
+
+impl<S, E, const N: usize> SyntaxFmt<S> for [E; N]
+where
+    E: SyntaxFmt<S>,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        self.as_slice().syntax_fmt(f)
+    }
+}
+
+// Implement SyntaxFmt for references and smart pointers
+impl<S, T> SyntaxFmt<S> for &T
+where
+    T: SyntaxFmt<S> + ?Sized,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        (*self).syntax_fmt(f)
+    }
+}
+
+impl<S, T> SyntaxFmt<S> for Box<T>
+where
+    T: SyntaxFmt<S> + ?Sized,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        (**self).syntax_fmt(f)
+    }
+}
+
+impl<S, T> SyntaxFmt<S> for std::rc::Rc<T>
+where
+    T: SyntaxFmt<S> + ?Sized,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        (**self).syntax_fmt(f)
+    }
+}
+
+impl<S, T> SyntaxFmt<S> for std::sync::Arc<T>
+where
+    T: SyntaxFmt<S> + ?Sized,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        (**self).syntax_fmt(f)
+    }
+}
+
+impl<S, T> SyntaxFmt<S> for std::borrow::Cow<'_, T>
+where
+    T: SyntaxFmt<S> + ToOwned + ?Sized,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        self.as_ref().syntax_fmt(f)
+    }
+}
+
+// Tuple types
+impl<S> SyntaxFmt<S> for () {
+    fn syntax_fmt(&self, _ctx: &mut SyntaxFormatter<S>) -> FmtResult {
+        Ok(())
+    }
+}
+
+impl<S, T0> SyntaxFmt<S> for (T0,)
+where
+    T0: SyntaxFmt<S>,
+{
+    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+        self.0.syntax_fmt(f)
+    }
+}
+
+macro_rules! impl_syntax_fmt_tuple {
+    ($($T:ident : $idx:tt),+) => {
+        impl<S, $($T),+> SyntaxFmt<S> for ($($T,)+)
+        where
+            $($T: SyntaxFmt<S>,)+
+        {
+            fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
+                f.write_prefix()?;
+                if f.want_content() {
+                    $(
+                        if $idx > 0 {
+                            f.write_delim()?;
+                        }
+                        self.$idx.syntax_fmt(f)?;
+                    )+
+                }
+                f.write_suffix()?;
+                Ok(())
+            }
+        }
+    };
+}
+
+impl_syntax_fmt_tuple!(T0: 0, T1: 1);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2, T3: 3);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2, T3: 3, T4: 4);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2, T3: 3, T4: 4, T5: 5);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2, T3: 3, T4: 4, T5: 5, T6: 6);
+impl_syntax_fmt_tuple!(T0: 0, T1: 1, T2: 2, T3: 3, T4: 4, T5: 5, T6: 6, T7: 7);
