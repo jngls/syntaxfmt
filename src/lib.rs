@@ -297,6 +297,19 @@ use std::ops::{Deref, DerefMut};
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    #[default]
+    Normal = 0,
+    Pretty = 1,
+}
+
+pub const NUM_MODES: usize = 2;
+pub type Strs = [&'static str; NUM_MODES];
+pub type Bools = [bool; NUM_MODES];
+
+type Strings = [String; NUM_MODES];
+
 // Holds state reference
 enum StateRef<'s, S> {
     None(&'s S),
@@ -345,84 +358,45 @@ impl<'s, S> StateRef<'s, S> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct DualStr(&'static str, &'static str);
-
-impl DualStr {
-    #[must_use]
-    #[inline(always)]
-    pub fn new(normal: &'static str, pretty: &'static str) -> Self {
-        Self(normal, pretty)
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn new_normal(normal: &'static str) -> Self {
-        Self(normal, "")
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn new_pretty(pretty: &'static str) -> Self {
-        Self("", pretty)
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn normal(&self) -> &'static str {
-        self.0
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn pretty(&self) -> &'static str {
-        self.1
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn get(&self, pretty: bool) -> &'static str {
-        if pretty {
-            self.pretty()
-        } else {
-            self.normal()
-        }
-    }
-}
-
 /// Context passed to formatting implementations, containing the formatter and formatting state.
 pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     f: &'f mut Formatter<'w>,
     state: &'sr RefCell<StateRef<'s, S>>,
-    pretty: bool,
-    single_indent: DualStr,
-    indent: (String, String),
-    delim_stack: Vec<DualStr>,
-    fmt_info_stack: Vec<(DualStr, DualStr, bool)>,
-    none: Option<DualStr>,
+    mode: Mode,
+    single_indent: Strs,
+    indent: Strings,
+    delim_stack: Vec<Strs>,
+    fmt_info_stack: Vec<(Strs, Strs, Bools)>,
+    none: Option<Strs>,
 }
 
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: DualStr, pretty: bool) -> Self {
+    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: Strs, mode: Mode) -> Self {
         Self {
             f,
             state,
-            pretty,
+            mode,
             single_indent: indent,
-            indent: (String::new(), String::new()),
+            indent: Default::default(),
             delim_stack: Vec::new(),
             fmt_info_stack: Vec::new(),
             none: None,
         }
     }
 
-    /// Returns `true` if pretty printing mode is enabled.
+    #[must_use]
+    #[inline(always)]
+    fn imode(&self) -> usize {
+        self.mode as usize
+    }
+
+    /// Returns current mode; `Normal`, `Pretty`
     #[must_use]
     #[inline]
-    pub fn is_pretty(&self) -> bool {
-        self.pretty
+    pub fn mode(&self) -> Mode {
+        self.mode
     }
 
     /// Returns a reference to the user-defined state.
@@ -443,13 +417,13 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     /// Writes a dual string to the formatter based on prettiness.
     #[must_use]
     #[inline]
-    pub fn write_dual_str(&mut self, dual_str: DualStr) -> FmtResult {
-        write!(self.f, "{}", dual_str.get(self.pretty))
+    pub fn write_strs(&mut self, strs: Strs) -> FmtResult {
+        write!(self.f, "{}", strs[self.imode()])
     }
 
     /// Pushes format info (prefix, suffix, want_content) onto the stack.
     #[inline]
-    pub fn push_fmt_info(&mut self, prefix: DualStr, suffix: DualStr, want_content: bool) {
+    pub fn push_fmt_info(&mut self, prefix: Strs, suffix: Strs, want_content: Bools) {
         self.fmt_info_stack.push((prefix, suffix, want_content));
     }
 
@@ -463,7 +437,7 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[inline]
     pub fn write_prefix(&mut self) -> FmtResult {
         if let Some((prefix, _, _)) = self.fmt_info_stack.last() {
-            write!(self.f, "{}", prefix.get(self.pretty))
+            write!(self.f, "{}", prefix[self.imode()])
         } else {
             Ok(())
         }
@@ -473,7 +447,7 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[inline]
     pub fn write_suffix(&mut self) -> FmtResult {
         if let Some((_, suffix, _)) = self.fmt_info_stack.last() {
-            write!(self.f, "{}", suffix.get(self.pretty))
+            write!(self.f, "{}", suffix[self.imode()])
         } else {
             Ok(())
         }
@@ -483,34 +457,31 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
     pub fn want_content(&self) -> bool {
-        self.fmt_info_stack.last().map_or(true, |(_, _, wants)| *wants)
+        let i = self.imode();
+        self.fmt_info_stack.last().map_or(true, |(_, _, want)| want[i])
     }
 
     /// Increases the indentation level by one.
     #[inline]
     pub fn push_indent(&mut self) {
-        self.indent.0.push_str(self.single_indent.normal());
-        self.indent.1.push_str(self.single_indent.pretty());
+        (0..NUM_MODES).for_each(|i| self.indent[i].push_str(self.single_indent[i]));
     }
 
     /// Decreases the indentation level by one.
     #[inline]
     pub fn pop_indent(&mut self) {
-        let normal_len = self.single_indent.normal().len();
-        let pretty_len = self.single_indent.pretty().len();
-        self.indent.0.truncate(self.indent.0.len() - normal_len);
-        self.indent.1.truncate(self.indent.1.len() - pretty_len);
+        (0..NUM_MODES).for_each(|i| self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len()));
     }
     
     /// Writes the current indentation to the output.
     #[inline]
     pub fn write_indent(&mut self) -> FmtResult {
-        write!(self.f, "{}", if self.is_pretty() { &self.indent.1 } else { &self.indent.0 })
+        write!(self.f, "{}", self.indent[self.imode()])
     }
 
     /// Pushes a new delimiter pair onto the delimiter stack.
     #[inline]
-    pub fn push_delim(&mut self, delim: DualStr) {
+    pub fn push_delim(&mut self, delim: Strs) {
         self.delim_stack.push(delim);
     }
 
@@ -524,12 +495,12 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[inline]
     pub fn write_delim(&mut self) -> FmtResult {
         let delim = self.delim_stack.last().copied();
-        let delim = delim.unwrap_or(DualStr::new(",", ", "));
-        write!(self.f, "{}", delim.get(self.pretty))
+        let delim = delim.unwrap_or([",", ", "]);
+        write!(self.f, "{}", delim[self.imode()])
     }
 
     /// Sets empty exit flag (usually for purposes of checking for None, false, or is_empty(), and exiting early)
-    pub fn set_none(&mut self, suffix: DualStr) {
+    pub fn set_none(&mut self, suffix: Strs) {
         self.none = Some(suffix);
     }
 
@@ -541,7 +512,7 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     /// Consumes and returns empty exit (with suffix)
     #[must_use]
     #[inline]
-    pub fn take_none(&mut self) -> Option<DualStr> {
+    pub fn take_none(&mut self) -> Option<Strs> {
         self.none.take()
     }
 }
@@ -566,8 +537,8 @@ impl<'sr, 's, 'f, 'w, S> DerefMut for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 pub struct SyntaxDisplay<'s, 'e, S, E> {
     state: RefCell<StateRef<'s, S>>,
     elem: &'e E,
-    indent: DualStr,
-    pretty: bool,
+    indent: Strs,
+    mode: Mode,
 }
 
 impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
@@ -579,7 +550,7 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
             state: RefCell::new(StateRef::new_ref(state)),
             elem: self.elem,
             indent: self.indent,
-            pretty: self.pretty,
+            mode: self.mode,
         }
     }
 
@@ -591,7 +562,7 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
             state: RefCell::new(StateRef::new_mut(state)),
             elem: self.elem,
             indent: self.indent,
-            pretty: self.pretty,
+            mode: self.mode,
         }
     }
 
@@ -599,14 +570,14 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
     #[must_use]
     #[inline]
     pub fn pretty(mut self) -> Self {
-        self.pretty = true;
+        self.mode = Mode::Pretty;
         self
     }
 
     /// Set the indentation string (default is four spaces).
     #[must_use]
     #[inline]
-    pub fn indent(mut self, indent: DualStr) -> Self {
+    pub fn indent(mut self, indent: Strs) -> Self {
         self.indent = indent;
         self
     }
@@ -617,7 +588,7 @@ where
     E: SyntaxFmt<S>,
 {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        let mut f = SyntaxFormatter::new(f, &self.state, self.indent, self.pretty);
+        let mut f = SyntaxFormatter::new(f, &self.state, self.indent, self.mode);
         self.elem.syntax_fmt(&mut f)
     }
 }
@@ -688,8 +659,8 @@ pub fn syntax_fmt<'e, E>(elem: &'e E) -> SyntaxDisplay<'static, 'e, (), E> {
     SyntaxDisplay {
         state: RefCell::new(StateRef::new_none(&UNIT_STATE)),
         elem,
-        pretty: false,
-        indent: DualStr::new("", "    "),
+        mode: Mode::Normal,
+        indent: ["", "    "],
     }
 }
 
@@ -724,7 +695,7 @@ impl<S> SyntaxFmt<S> for bool {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         if let Some(suffix) = f.take_none() {
             if !*self {
-                return f.write_dual_str(suffix);
+                return f.write_strs(suffix);
             }
         }
 
@@ -741,7 +712,7 @@ impl<S, E> SyntaxFmt<S> for Option<E> where E: SyntaxFmt<S> {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         if let Some(suffix) = f.take_none() {
             if self.is_none() {
-                return f.write_dual_str(suffix);
+                return f.write_strs(suffix);
             }
         }
 
@@ -774,7 +745,7 @@ where
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         if let Some(suffix) = f.take_none() {
             if self.is_empty() {
-                return f.write_dual_str(suffix);
+                return f.write_strs(suffix);
             }
         }
 
@@ -784,7 +755,7 @@ where
                 if i > 0 {
                     f.write_delim()?;
                 }
-                if f.is_pretty() {
+                if f.mode() == Mode::Pretty {
                     // This might need some work
                     // maybe a write_newline function which deals with indentation?
                     f.write_indent()?;

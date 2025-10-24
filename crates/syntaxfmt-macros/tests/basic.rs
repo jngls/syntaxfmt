@@ -1,5 +1,5 @@
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, DualStr, SyntaxFmt, SyntaxFormatter};
+use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
 
 // Shared test types
 #[derive(SyntaxFmtDerive)]
@@ -18,12 +18,12 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
         if self.is_empty() {
             return Ok(());
         }
-        ctx.push_delim(DualStr::new(", ", ""));
+        ctx.push_delim([", ", ""]);
         for (i, item) in self.0.iter().enumerate() {
             if i > 0 {
                 ctx.write_delim()?;
             }
-            if ctx.is_pretty() {
+            if ctx.mode() == Mode::Pretty {
                 ctx.write_indent()?;
             }
             item.syntax_fmt(ctx)?;

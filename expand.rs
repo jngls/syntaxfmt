@@ -1,249 +1,3 @@
-// Parse type Statement:
-/*
-struct Statement < 'src >
-(#[syntax(format = ("{content}", "{content}\n"))] & 'src str);
-*/
-
-//     Parse unnamed field: __0: & 'src str
-
-// Gen type: Statement
-//         inner decl: (__0)
-//     Gen unnamed field: __0
-
-
-// Parse type SimpleStruct:
-/*
-struct SimpleStruct < 'src >
-{ #[syntax(format = "name: {content}")] name : & 'src str, }
-*/
-
-//     Parse named field: name: & 'src str
-
-// Gen type: SimpleStruct
-//         inner decl: { name }
-//     Gen named field: name
-
-
-// Parse type WithOptional:
-/*
-struct WithOptional < 'src >
-{
-    #[syntax(format = ("required: {content};", "required: {content};\n"))]
-    required : & 'src str,
-    #[syntax(format = (" optional: {content}", "optional: {content}"))]
-    optional : Option < & 'src str > ,
-}
-*/
-
-//     Parse named field: required: & 'src str
-//     Parse named field: optional: Option < & 'src str >
-
-// Gen type: WithOptional
-//         inner decl: { required, optional }
-//     Gen named field: required
-//     Gen named field: optional
-
-
-// Parse type SimpleEnum:
-/*
-enum SimpleEnum < 'src >
-{ #[syntax(format = "super")] Super, Ident(& 'src str), }
-*/
-
-//     Parse unnamed field: __0: & 'src str
-
-// Gen type: SimpleEnum
-//         variant inner decl: Self :: Super
-//         variant inner decl: Self :: Ident(__0)
-//     Gen unnamed field: __0
-
-
-// Parse type FunctionDecl:
-/*
-struct FunctionDecl < 'src >
-{
-    #[syntax(format = "pub ")] is_pub : bool,
-    #[syntax(format = "fn {content}")] name : & 'src str,
-}
-*/
-
-//     Parse named field: is_pub: bool
-//     Parse named field: name: & 'src str
-
-// Gen type: FunctionDecl
-//         inner decl: { is_pub, name }
-//     Gen named field: is_pub
-//     Gen named field: name
-
-
-// Parse type WithFormatLiteral:
-/*
-struct WithFormatLiteral < 'src >
-{ #[allow(unused)] #[syntax(format = "name: CUSTOM")] name : & 'src str, }
-*/
-
-//     Parse named field: name: & 'src str
-
-// Gen type: WithFormatLiteral
-//         inner decl: { name }
-//     Gen named field: name
-
-
-// Parse type WithCustomFormatter:
-/*
-struct WithCustomFormatter < 'src >
-{
-    #[syntax(format = "value: {content}", content = custom_formatter)] value :
-    & 'src str,
-}
-*/
-
-//     Parse named field: value: & 'src str
-
-// Gen type: WithCustomFormatter
-//         inner decl: { value }
-//     Gen named field: value
-
-
-// Parse type WithStatefulFormatter:
-/*
-#[syntax(state_bound = NameResolver)] struct WithStatefulFormatter < 'src >
-{
-    #[syntax(format = "id: {content}", content = resolve_formatter)] id : &
-    'src str,
-}
-*/
-
-//     Parse named field: id: & 'src str
-
-// Gen type: WithStatefulFormatter
-//         inner decl: { id }
-//     Gen named field: id
-
-
-// Parse type Module:
-/*
-struct Module < 'src >
-{
-    #[syntax(format = "mod {content}")] name : & 'src str,
-    #[syntax(format = (" {{{content}}}", " {{\n{content}}}"), none = ";",
-    indent_region)] items : Items < 'src > ,
-}
-*/
-
-//     Parse named field: name: & 'src str
-//     Parse named field: items: Items < 'src >
-
-// Gen type: Module
-//         inner decl: { name, items }
-//     Gen named field: name
-//     Gen named field: items
-
-
-// Parse type RefType:
-/*
-#[syntax(format = ("&{content}", "ref {content}"))] struct RefType < 'src >
-{ #[syntax(format = "mut ")] is_mut : bool, value : & 'src str, }
-*/
-
-//     Parse named field: is_mut: bool
-//     Parse named field: value: & 'src str
-
-// Gen type: RefType
-//         inner decl: { is_mut, value }
-//     Gen named field: is_mut
-//     Gen named field: value
-
-
-// Parse type Ident:
-/*
-struct Ident < 'src > (& 'src str);
-*/
-
-//     Parse unnamed field: __0: & 'src str
-
-// Gen type: Ident
-//         inner decl: (__0)
-//     Gen unnamed field: __0
-
-
-// Parse type Collections:
-/*
-struct Collections < 'src >
-{
-    #[syntax(delim = ", ")] vec : Vec < Ident < 'src > > ,
-    #[syntax(delim = ", ")] slice : & 'src [Ident < 'src >],
-    #[syntax(delim = ", ")] array : [Ident < 'src > ; 2],
-}
-*/
-
-//     Parse named field: vec: Vec < Ident < 'src > >
-//     Parse named field: slice: & 'src [Ident < 'src >]
-//     Parse named field: array: [Ident < 'src > ; 2]
-
-// Gen type: Collections
-//         inner decl: { vec, slice, array }
-//     Gen named field: vec
-//     Gen named field: slice
-//     Gen named field: array
-
-
-// Parse type PathSegment:
-/*
-struct PathSegment < 'src > (& 'src str);
-*/
-
-//     Parse unnamed field: __0: & 'src str
-
-// Gen type: PathSegment
-//         inner decl: (__0)
-//     Gen unnamed field: __0
-
-
-// Parse type QualifiedPath:
-/*
-struct QualifiedPath < 'src >
-{
-    #[syntax(delim = ("::", " :: "))] segments : Vec < PathSegment < 'src > >
-    ,
-}
-*/
-
-//     Parse named field: segments: Vec < PathSegment < 'src > >
-
-// Gen type: QualifiedPath
-//         inner decl: { segments }
-//     Gen named field: segments
-
-
-// Parse type Item:
-/*
-struct Item < 'src > (& 'src str);
-*/
-
-//     Parse unnamed field: __0: & 'src str
-
-// Gen type: Item
-//         inner decl: (__0)
-//     Gen unnamed field: __0
-
-
-// Parse type List:
-/*
-struct List < 'src >
-{
-    #[syntax(format = ("[{content}]", "[\n{content}\n]"), indent_region, delim
-    = (", ", ",\n"))] items : Vec < Item < 'src > > ,
-}
-*/
-
-//     Parse named field: items: Vec < Item < 'src > >
-
-// Gen type: List
-//         inner decl: { items }
-//     Gen named field: items
-
-
 #![feature(prelude_import)]
 #[prelude_import]
 use std::prelude::rust_2024::*;
@@ -252,6 +6,8 @@ extern crate std;
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
 use syntaxfmt::{syntax_fmt, DualStr, SyntaxFmt, SyntaxFormatter};
 struct Statement<'src>(#[syntax(format = ("{content}", "{content}\n"))] &'src str);
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Statement<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -261,9 +17,9 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self(__0) = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.push_fmt_info(["", ""], ["", "\n"], [true, true]);
         __0.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", "\n"))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -278,7 +34,7 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
         if self.is_empty() {
             return Ok(());
         }
-        ctx.push_delim(DualStr::new(", ", ""));
+        ctx.push_delim(DualStr(", ", ""));
         for (i, item) in self.0.iter().enumerate() {
             if i > 0 {
                 ctx.write_delim()?;
@@ -296,6 +52,8 @@ struct SimpleStruct<'src> {
     #[syntax(format = "name: {content}")]
     name: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for SimpleStruct<'src>
 where
@@ -306,9 +64,9 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { name } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("name: ", "name: "))?;
+        f.push_fmt_info(["name: ", "name: "], ["", ""], [true, true]);
         name.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -380,6 +138,8 @@ struct WithOptional<'src> {
     #[syntax(format = (" optional: {content}", "optional: {content}"))]
     optional: Option<&'src str>,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithOptional<'src>
 where
@@ -391,12 +151,12 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { required, optional } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("required: ", "required: "))?;
+        f.push_fmt_info(["required: ", "required: "], [";", ";\n"], [true, true]);
         required.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new(";", ";\n"))?;
-        f.write_dual_str(syntaxfmt::DualStr::new(" optional: ", "optional: "))?;
+        f.pop_fmt_info();
+        f.push_fmt_info([" optional: ", "optional: "], ["", ""], [true, true]);
         optional.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -510,6 +270,8 @@ enum SimpleEnum<'src> {
     Super,
     Ident(&'src str),
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for SimpleEnum<'src>
 where
@@ -521,10 +283,12 @@ where
     ) -> ::std::fmt::Result {
         match self {
             Self::Super => {
-                f.write_dual_str(syntaxfmt::DualStr::new("super", "super"))?;
-                f.write_dual_str(syntaxfmt::DualStr::new("super", "super"))?;
+                f.push_fmt_info(["super", "super"], ["super", "super"], [false, false]);
+                f.pop_fmt_info();
             }
             Self::Ident(__0) => {
+                f.push_fmt_info(["", ""], ["", ""], [false, false]);
+                f.push_fmt_info(["", ""], ["", ""], [false, false]);
                 __0.syntax_fmt(f)?;
             }
             _ => {}
@@ -638,6 +402,8 @@ struct FunctionDecl<'src> {
     #[syntax(format = "fn {content}")]
     name: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for FunctionDecl<'src>
 where
@@ -649,12 +415,11 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { is_pub, name } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("pub ", "pub "))?;
-        is_pub.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("pub ", "pub "))?;
-        f.write_dual_str(syntaxfmt::DualStr::new("fn ", "fn "))?;
+        f.push_fmt_info(["pub ", "pub "], ["pub ", "pub "], [false, false]);
+        f.pop_fmt_info();
+        f.push_fmt_info(["fn ", "fn "], ["", ""], [true, true]);
         name.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -768,6 +533,8 @@ struct WithFormatLiteral<'src> {
     #[syntax(format = "name: CUSTOM")]
     name: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithFormatLiteral<'src>
 where
@@ -778,9 +545,12 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { name } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("name: CUSTOM", "name: CUSTOM"))?;
-        name.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("name: CUSTOM", "name: CUSTOM"))?;
+        f.push_fmt_info(
+            ["name: CUSTOM", "name: CUSTOM"],
+            ["name: CUSTOM", "name: CUSTOM"],
+            [false, false],
+        );
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -862,6 +632,8 @@ struct WithCustomFormatter<'src> {
     #[syntax(format = "value: {content}", content = custom_formatter)]
     value: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithCustomFormatter<'src>
 where
@@ -872,9 +644,10 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { value } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("value: ", "value: "))?;
-        (custom_formatter)(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.push_fmt_info(["value: ", "value: "], ["", ""], [true, true]);
+        let i = value;
+        (custom_formatter)(i, f)?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -981,6 +754,8 @@ struct WithStatefulFormatter<'src> {
     #[syntax(format = "id: {content}", content = resolve_formatter)]
     id: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithStatefulFormatter<'src>
 where
@@ -992,9 +767,10 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { id } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("id: ", "id: "))?;
-        (resolve_formatter)(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.push_fmt_info(["id: ", "id: "], ["", ""], [true, true]);
+        let i = id;
+        (resolve_formatter)(i, f)?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -1078,6 +854,8 @@ struct Module<'src> {
     #[syntax(format = (" {{{content}}}", " {{\n{content}}}"), none = ";", indent_region)]
     items: Items<'src>,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Module<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1088,16 +866,16 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { name, items } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("mod ", "mod "))?;
+        f.push_fmt_info(["mod ", "mod "], ["", ""], [true, true]);
         name.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
-        f.write_dual_str(syntaxfmt::DualStr::new(" {{", " {{\n"))?;
+        f.pop_fmt_info();
+        f.push_fmt_info([" {{", " {{\n"], ["}}", "}}"], [true, true]);
         f.push_indent();
-        f.set_none(syntaxfmt::DualStr::new(";", ";"));
+        f.set_none([";", ";"]);
         items.syntax_fmt(f)?;
         f.clear_none();
         f.pop_indent();
-        f.write_dual_str(syntaxfmt::DualStr::new("}}", "}}"))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -1216,6 +994,8 @@ struct RefType<'src> {
     is_mut: bool,
     value: &'src str,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for RefType<'src>
 where
     bool: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1225,13 +1005,13 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        f.write_dual_str(syntaxfmt::DualStr::new("&", "ref "))?;
+        f.push_fmt_info(["&", "ref "], ["", ""], [true, true]);
         let Self { is_mut, value } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("mut ", "mut "))?;
-        is_mut.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("mut ", "mut "))?;
+        f.push_fmt_info(["mut ", "mut "], ["mut ", "mut "], [false, false]);
+        f.pop_fmt_info();
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
         value.syntax_fmt(f)?;
-        f.write_dual_str(syntaxfmt::DualStr::new("", ""))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
@@ -1341,6 +1121,8 @@ fn test_outer_format() {
     };
 }
 struct Ident<'src>(&'src str);
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Ident<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1350,6 +1132,7 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self(__0) = &self;
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
         __0.syntax_fmt(f)?;
         Ok(())
     }
@@ -1362,6 +1145,8 @@ struct Collections<'src> {
     #[syntax(delim = ", ")]
     array: [Ident<'src>; 2],
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for Collections<'src>
 where
@@ -1374,13 +1159,16 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { vec, slice, array } = &self;
-        f.push_delim(syntaxfmt::DualStr::new(", ", ", "));
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        f.push_delim([", ", ", "]);
         vec.syntax_fmt(f)?;
         f.pop_delim();
-        f.push_delim(syntaxfmt::DualStr::new(", ", ", "));
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        f.push_delim([", ", ", "]);
         slice.syntax_fmt(f)?;
         f.pop_delim();
-        f.push_delim(syntaxfmt::DualStr::new(", ", ", "));
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        f.push_delim([", ", ", "]);
         array.syntax_fmt(f)?;
         f.pop_delim();
         Ok(())
@@ -1454,6 +1242,8 @@ fn test_collections() {
     };
 }
 struct PathSegment<'src>(&'src str);
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for PathSegment<'src>
 where
@@ -1464,6 +1254,7 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self(__0) = &self;
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
         __0.syntax_fmt(f)?;
         Ok(())
     }
@@ -1472,6 +1263,8 @@ struct QualifiedPath<'src> {
     #[syntax(delim = ("::", " :: "))]
     segments: Vec<PathSegment<'src>>,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for QualifiedPath<'src>
 where
@@ -1482,7 +1275,8 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { segments } = &self;
-        f.push_delim(syntaxfmt::DualStr::new("::", " :: "));
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        f.push_delim(["::", " :: "]);
         segments.syntax_fmt(f)?;
         f.pop_delim();
         Ok(())
@@ -1559,6 +1353,8 @@ fn test_collection_with_custom_delim() {
     };
 }
 struct Item<'src>(&'src str);
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Item<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1568,6 +1364,7 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self(__0) = &self;
+        f.push_fmt_info(["", ""], ["", ""], [false, false]);
         __0.syntax_fmt(f)?;
         Ok(())
     }
@@ -1580,6 +1377,8 @@ struct List<'src> {
     )]
     items: Vec<Item<'src>>,
 }
+#[deprecated = "Your warning message: consider doing X instead of Y"]
+const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for List<'src>
 where
     Vec<Item<'src>>: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1589,13 +1388,13 @@ where
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
         let Self { items } = &self;
-        f.write_dual_str(syntaxfmt::DualStr::new("[", "[\n"))?;
-        f.push_delim(syntaxfmt::DualStr::new(", ", ",\n"));
+        f.push_fmt_info(["[", "[\n"], ["]", "\n]"], [true, true]);
+        f.push_delim([", ", ",\n"]);
         f.push_indent();
         items.syntax_fmt(f)?;
         f.pop_indent();
         f.pop_delim();
-        f.write_dual_str(syntaxfmt::DualStr::new("]", "\n]"))?;
+        f.pop_fmt_info();
         Ok(())
     }
 }
