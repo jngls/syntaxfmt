@@ -9,7 +9,7 @@ A derive macro-based library for flexible syntax tree formatting with pretty pri
 `syntaxfmt` provides a trait-based approach to formatting syntax trees with both compact and pretty-printed output modes. It's designed for compiler frontends, code generators, and any application that needs to format structured data as text with optional formatting.
 
 # WARNING
-Please be aware, this an alpha stage project. We have a bug https://github.com/jngls/syntaxfmt/issues/2 which is causing massive RAM usage in rustc. This is due to a blanket implementation choking rust-analyzer. I'm aware of it and actively fixing it but need to restructure a few things. I'm about 50% through.
+Please be aware, this an alpha stage project. We have a bug https://github.com/jngls/syntaxfmt/issues/2 which is causing massive RAM usage in rustc. This is due to a blanket implementation choking rust-analyzer. I'm aware of it and actively fixing it in https://github.com/jngls/syntaxfmt/tree/fix-blanket-impl.
 
 ## Features
 
