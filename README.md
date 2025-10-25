@@ -41,7 +41,7 @@ use syntaxfmt::{SyntaxFmt, syntax_fmt};
 #[derive(SyntaxFmt)]
 struct FunctionCall<'src> {
     name: &'src str,
-    #[syntax(format = "({content})", pretty_format = "( {content} )")]
+    #[syntax(format = "({*})", pretty_format = "( {*} )")]
     args: &'src str,
 }
 
@@ -91,14 +91,14 @@ For complete documentation, visit [docs.rs/syntaxfmt](https://docs.rs/syntaxfmt)
 
 - `#[syntax(delim = ", ")]` - Delimiter between items of this type, used by Vec and slice implementations (default: `","`)
 - `#[syntax(pretty_delim = ",\n")]` - Delimiter in pretty mode (default: `", "`)
-- `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the whole type (default: `"{content}"`)
-- `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the whole type (default: `"{content}"`)
+- `#[syntax(format = "prefix{*}suffix")]` - For prefixes and suffixes around the whole type (default: `"{*}"`)
+- `#[syntax(pretty_format = "prefix{*}suffix")]` - For pretty prefixes and suffixes around the whole type (default: `"{*}"`)
 - `#[syntax(state_bound = "MyTrait")]` - Add trait bound for exposing functionality to custom formatter functions
 
 ### Field-level attributes
 
-- `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the field (default: `"{content}"`)
-- `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the field (default: `"{content}"`)
+- `#[syntax(format = "prefix{*}suffix")]` - For prefixes and suffixes around the field (default: `"{*}"`)
+- `#[syntax(pretty_format = "prefix{*}suffix")]` - For pretty prefixes and suffixes around the field (default: `"{*}"`)
 - `#[syntax(content = my_formatter)]` - Custom content formatter function
 - `#[syntax(empty_suffix = ";")]` - Early out with this string when field is empty (for types which implement `is_empty()` function)
 - `#[syntax(indent)]` - Write indentation before this field (pretty mode only)

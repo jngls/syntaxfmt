@@ -1,9 +1,13 @@
+#![allow(unreachable_patterns)]
+#![allow(unused)]
+
+
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
 use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
 
 // Shared test types
 #[derive(SyntaxFmtDerive)]
-struct Statement<'src>(#[syntax(format = ("{content}", "{content}\n"))] &'src str);
+struct Statement<'src>(#[syntax(format = ("{*}", "{*}\n"))] &'src str);
 
 struct Items<'src>(Vec<Statement<'src>>);
 
@@ -35,7 +39,7 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
 
 #[derive(SyntaxFmtDerive)]
 struct SimpleStruct<'src> {
-    #[syntax(format = "name: {content}")]
+    #[syntax(format = "name: {*}")]
     name: &'src str,
 }
 
@@ -48,9 +52,9 @@ fn test_basic_struct() {
 
 #[derive(SyntaxFmtDerive)]
 struct WithOptional<'src> {
-    #[syntax(format = ("required: {content};", "required: {content};\n"))]
+    #[syntax(format = ("required: {*};", "required: {*};\n"))]
     required: &'src str,
-    #[syntax(format = (" optional: {content}", "optional: {content}"))]
+    #[syntax(format = (" optional: {*}", "optional: {*}"))]
     optional: Option<&'src str>,
 }
 
@@ -67,7 +71,7 @@ fn test_optional_field() {
 
 #[derive(SyntaxFmtDerive)]
 enum SimpleEnum<'src> {
-    #[syntax(format = "super")]
+    #[syntax(content = "super")]
     Super,
     Ident(&'src str),
 }
@@ -82,9 +86,9 @@ fn test_enum() {
 
 #[derive(SyntaxFmtDerive)]
 struct FunctionDecl<'src> {
-    #[syntax(format = "pub ")]
+    #[syntax(format = "pub {*}", eval = *field)]
     is_pub: bool,
-    #[syntax(format = "fn {content}")]
+    #[syntax(format = "fn {*}")]
     name: &'src str,
 }
 
@@ -100,16 +104,15 @@ fn test_bool_field() {
 }
 
 #[derive(SyntaxFmtDerive)]
-struct WithFormatLiteral<'src> {
-    #[allow(unused)]
-    #[syntax(format = "name: CUSTOM")]
+struct WithContentLiteral<'src> {
+    #[syntax(content = "name: CUSTOM")]
     name: &'src str,
 }
 
 #[test]
 fn test_format_literal() {
-    assert_eq!(format!("{}", syntax_fmt(&WithFormatLiteral { name: "foo" })), "name: CUSTOM");
-    assert_eq!(format!("{}", syntax_fmt(&WithFormatLiteral { name: "foo" }).pretty()), "name: CUSTOM");
+    assert_eq!(format!("{}", syntax_fmt(&WithContentLiteral { name: "foo" })), "name: CUSTOM");
+    assert_eq!(format!("{}", syntax_fmt(&WithContentLiteral { name: "foo" }).pretty()), "name: CUSTOM");
 }
 
 // Custom formatters
@@ -119,7 +122,7 @@ fn custom_formatter<State>(value: &str, ctx: &mut SyntaxFormatter<State>) -> std
 
 #[derive(SyntaxFmtDerive)]
 struct WithCustomFormatter<'src> {
-    #[syntax(format = "value: {content}", content = custom_formatter)]
+    #[syntax(format = "value: {*}", content = custom_formatter)]
     value: &'src str,
 }
 
@@ -150,7 +153,7 @@ fn resolve_formatter<State: NameResolver>(value: &str, ctx: &mut SyntaxFormatter
 #[derive(SyntaxFmtDerive)]
 #[syntax(state_bound = NameResolver)]
 struct WithStatefulFormatter<'src> {
-    #[syntax(format = "id: {content}", content = resolve_formatter)]
+    #[syntax(format = "id: {*}", content = resolve_formatter)]
     id: &'src str,
 }
 
@@ -164,12 +167,12 @@ fn test_stateful_formatter() {
 // Module with indentation and none output
 #[derive(SyntaxFmtDerive)]
 struct Module<'src> {
-    #[syntax(format = "mod {content}")]
+    #[syntax(format = "mod {*}")]
     name: &'src str,
     #[syntax(
-        format = (" {{{content}}}", " {{\n{content}}}"),
-        none = ";",
-        indent_region
+        format = (" {{{*}}}", " {{\n{*}}}"),
+        indent_region,
+        eval = |v: &Items<'src>| !v.is_empty(),
     )]
     items: Items<'src>,
 }
@@ -187,9 +190,9 @@ fn test_indent_and_empty_suffix() {
 
 // Outer format with pretty variant
 #[derive(SyntaxFmtDerive)]
-#[syntax(format = ("&{content}", "ref {content}"))]
+#[syntax(format = ("&{*}", "ref {*}"))]
 struct RefType<'src> {
-    #[syntax(format = "mut ")]
+    #[syntax(content = "mut ")]
     is_mut: bool,
     value: &'src str,
 }
@@ -256,7 +259,7 @@ struct Item<'src>(&'src str);
 
 #[derive(SyntaxFmtDerive)]
 struct List<'src> {
-    #[syntax(format = ("[{content}]", "[\n{content}\n]"), indent_region, delim = (", ", ",\n"))]
+    #[syntax(format = ("[{*}]", "[\n{*}\n]"), indent_region, delim = (", ", ",\n"))]
     items: Vec<Item<'src>>,
 }
 

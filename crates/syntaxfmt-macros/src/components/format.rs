@@ -2,76 +2,86 @@ use std::{array::from_fn, mem::take};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
+use syn::Expr;
 
-use crate::components::{content::EmitContent, modal::{Bools, Strings, NUM_MODES}};
+use crate::{components::{modal::{Strings, NUM_MODES}, parse_basic::ParseBasic}, SyntaxError};
+
+#[cfg(feature = "trace")]
+use crate::{trace, DEPTH};
 
 pub trait IntoSplitFormat: Sized {
-    type Fix;
-    type WantContent;
+    type Side;
 
-    fn into_split_format(self) -> (Self::Fix, Self::Fix, Self::WantContent);
+    fn into_split_format(self) -> (Self::Side, Self::Side, bool);
 }
 
 impl IntoSplitFormat for String {
-    type Fix = Self;
-    type WantContent = bool;
-
-    fn into_split_format(self) -> (Self::Fix, Self::Fix, Self::WantContent) {
-        if let Some(pos) = self.find("{content}") {
+    type Side = Self;
+    #[cfg_attr(feature = "trace", trace)]
+    fn into_split_format(self) -> (Self::Side, Self::Side, bool) {
+        if let Some(pos) = self.find("{*}") {
+            (self[..pos].into(), self[pos + 3..].into(), true)
+        } else if let Some(pos) = self.find("{content}") {
             (self[..pos].into(), self[pos + 9..].into(), true)
         } else {
-            (self.clone(), self, false)
+            Default::default()
         }
     }
 }
 
 impl IntoSplitFormat for Strings {
-    type Fix = Self;
-    type WantContent = Bools;
+    type Side = Self;
 
-    fn into_split_format(mut self) -> (Self::Fix, Self::Fix, Self::WantContent) {
+    #[cfg_attr(feature = "trace", trace)]
+    fn into_split_format(mut self) -> (Self::Side, Self::Side, bool) {
         let mut split: [(String, String, bool); NUM_MODES] = from_fn(|i| take(&mut self[i]).into_split_format());
         let prefix = from_fn(|i| take(&mut split[i].0));
         let suffix = from_fn(|i| take(&mut split[i].1));
-        let has_content = from_fn(|i| split[i].2);
-        (Self(prefix), Self(suffix), Bools(has_content))
+        let valid = split.iter().all(|(_, _, b)| *b);
+        (Self(prefix), Self(suffix), valid)
     }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct PushFormat {
+pub struct Format {
     pub prefix: Strings,
     pub suffix: Strings,
-    pub want_content: Bools,
 }
 
-impl EmitContent for PushFormat {
-    fn emit_content(&self) -> super::content::ContentMode {
-        self.want_content.emit_content()
+impl<'a> ParseBasic<'a> for Format {
+    type Input = Expr;
+
+    fn parse_basic(input: &'a Self::Input) -> Result<Self, SyntaxError> {
+        let (prefix, suffix, valid) = Strings::parse_basic(input)?.into_split_format();
+        let format = valid.then_some(Self { prefix, suffix });
+        format.ok_or(SyntaxError::ExpectedContent(input.clone()))
     }
 }
 
-impl ToTokens for PushFormat {
+impl Format {
+    pub fn split<'a>(&'a self) -> (WritePrefix<'a>, WriteSuffix<'a>) {
+        (WritePrefix(&self.prefix), WriteSuffix(&self.suffix))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WritePrefix<'a>(pub &'a Strings);
+
+impl<'a> ToTokens for WritePrefix<'a> {
+    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let prefix = &self.prefix;
-        let suffix = &self.suffix;
-        let want_content = &self.want_content;
-        tokens.extend(quote! { f.push_fmt_info(#prefix, #suffix, #want_content); });
+        let prefix = self.0;
+        tokens.extend(quote! { f.write_strs(#prefix); });
     }
 }
 
-impl From<Strings> for PushFormat {
-    fn from(value: Strings) -> Self {
-        let (prefix, suffix, want_content) = value.into_split_format();
-        Self { prefix, suffix, want_content }
-    }
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WriteSuffix<'a>(pub &'a Strings);
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct PopFormat;
-
-impl ToTokens for PopFormat {
+impl<'a> ToTokens for WriteSuffix<'a> {
+    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        tokens.extend(quote! { f.pop_fmt_info(); });
+        let suffix = self.0;
+        tokens.extend(quote! { f.write_strs(#suffix); });
     }
 }

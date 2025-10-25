@@ -1,13 +1,13 @@
 #![feature(prelude_import)]
+#![allow(unreachable_patterns)]
+#![allow(unused)]
 #[prelude_import]
 use std::prelude::rust_2024::*;
 #[macro_use]
 extern crate std;
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, DualStr, SyntaxFmt, SyntaxFormatter};
-struct Statement<'src>(#[syntax(format = ("{content}", "{content}\n"))] &'src str);
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
+use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
+struct Statement<'src>(#[syntax(format = ("{*}", "{*}\n"))] &'src str);
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Statement<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -16,10 +16,12 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self(__0) = &self;
-        f.push_fmt_info(["", ""], ["", "\n"], [true, true]);
+        let field = self;
+        let Self(__0) = self;
+        let field = __0;
+        f.write_strs(["", ""]);
         __0.syntax_fmt(f)?;
-        f.pop_fmt_info();
+        f.write_strs(["", "\n"]);
         Ok(())
     }
 }
@@ -34,12 +36,12 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
         if self.is_empty() {
             return Ok(());
         }
-        ctx.push_delim(DualStr(", ", ""));
+        ctx.push_delim([", ", ""]);
         for (i, item) in self.0.iter().enumerate() {
             if i > 0 {
                 ctx.write_delim()?;
             }
-            if ctx.is_pretty() {
+            if ctx.mode() == Mode::Pretty {
                 ctx.write_indent()?;
             }
             item.syntax_fmt(ctx)?;
@@ -49,11 +51,9 @@ impl<'src> SyntaxFmt<()> for Items<'src> {
     }
 }
 struct SimpleStruct<'src> {
-    #[syntax(format = "name: {content}")]
+    #[syntax(format = "name: {*}")]
     name: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for SimpleStruct<'src>
 where
@@ -63,10 +63,12 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { name } = &self;
-        f.push_fmt_info(["name: ", "name: "], ["", ""], [true, true]);
+        let field = self;
+        let Self { name } = self;
+        let field = name;
+        f.write_strs(["name: ", "name: "]);
         name.syntax_fmt(f)?;
-        f.pop_fmt_info();
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -79,9 +81,9 @@ pub const test_basic_struct: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 43usize,
+        start_line: 47usize,
         start_col: 4usize,
-        end_line: 43usize,
+        end_line: 47usize,
         end_col: 21usize,
         compile_fail: false,
         no_run: false,
@@ -133,13 +135,11 @@ fn test_basic_struct() {
     };
 }
 struct WithOptional<'src> {
-    #[syntax(format = ("required: {content};", "required: {content};\n"))]
+    #[syntax(format = ("required: {*};", "required: {*};\n"))]
     required: &'src str,
-    #[syntax(format = (" optional: {content}", "optional: {content}"))]
+    #[syntax(format = (" optional: {*}", "optional: {*}"))]
     optional: Option<&'src str>,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithOptional<'src>
 where
@@ -150,13 +150,16 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { required, optional } = &self;
-        f.push_fmt_info(["required: ", "required: "], [";", ";\n"], [true, true]);
+        let field = self;
+        let Self { required, optional } = self;
+        let field = required;
+        f.write_strs(["required: ", "required: "]);
         required.syntax_fmt(f)?;
-        f.pop_fmt_info();
-        f.push_fmt_info([" optional: ", "optional: "], ["", ""], [true, true]);
+        f.write_strs([";", ";\n"]);
+        let field = optional;
+        f.write_strs([" optional: ", "optional: "]);
         optional.syntax_fmt(f)?;
-        f.pop_fmt_info();
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -169,9 +172,9 @@ pub const test_optional_field: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 58usize,
+        start_line: 62usize,
         start_col: 4usize,
-        end_line: 58usize,
+        end_line: 62usize,
         end_col: 23usize,
         compile_fail: false,
         no_run: false,
@@ -266,12 +269,10 @@ fn test_optional_field() {
     };
 }
 enum SimpleEnum<'src> {
-    #[syntax(format = "super")]
+    #[syntax(content = "super")]
     Super,
     Ident(&'src str),
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for SimpleEnum<'src>
 where
@@ -281,14 +282,15 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
+        let field = self;
         match self {
             Self::Super => {
-                f.push_fmt_info(["super", "super"], ["super", "super"], [false, false]);
-                f.pop_fmt_info();
+                let field = self;
+                ("super").syntax_fmt(f)?;
             }
             Self::Ident(__0) => {
-                f.push_fmt_info(["", ""], ["", ""], [false, false]);
-                f.push_fmt_info(["", ""], ["", ""], [false, false]);
+                let field = self;
+                let field = __0;
                 __0.syntax_fmt(f)?;
             }
             _ => {}
@@ -305,9 +307,9 @@ pub const test_enum: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 76usize,
+        start_line: 80usize,
         start_col: 4usize,
-        end_line: 76usize,
+        end_line: 80usize,
         end_col: 13usize,
         compile_fail: false,
         no_run: false,
@@ -397,13 +399,11 @@ fn test_enum() {
     };
 }
 struct FunctionDecl<'src> {
-    #[syntax(format = "pub ")]
+    #[syntax(format = "pub {*}", eval = *field)]
     is_pub: bool,
-    #[syntax(format = "fn {content}")]
+    #[syntax(format = "fn {*}")]
     name: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for FunctionDecl<'src>
 where
@@ -414,12 +414,18 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { is_pub, name } = &self;
-        f.push_fmt_info(["pub ", "pub "], ["pub ", "pub "], [false, false]);
-        f.pop_fmt_info();
-        f.push_fmt_info(["fn ", "fn "], ["", ""], [true, true]);
+        let field = self;
+        let Self { is_pub, name } = self;
+        let field = is_pub;
+        if (*field) {
+            f.write_strs(["pub ", "pub "]);
+            is_pub.syntax_fmt(f)?;
+            f.write_strs(["", ""]);
+        }
+        let field = name;
+        f.write_strs(["fn ", "fn "]);
         name.syntax_fmt(f)?;
-        f.pop_fmt_info();
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -432,9 +438,9 @@ pub const test_bool_field: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 92usize,
+        start_line: 96usize,
         start_col: 4usize,
-        end_line: 92usize,
+        end_line: 96usize,
         end_col: 19usize,
         compile_fail: false,
         no_run: false,
@@ -528,15 +534,12 @@ fn test_bool_field() {
         }
     };
 }
-struct WithFormatLiteral<'src> {
-    #[allow(unused)]
-    #[syntax(format = "name: CUSTOM")]
+struct WithContentLiteral<'src> {
+    #[syntax(content = "name: CUSTOM")]
     name: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
-for WithFormatLiteral<'src>
+for WithContentLiteral<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
 {
@@ -544,13 +547,10 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { name } = &self;
-        f.push_fmt_info(
-            ["name: CUSTOM", "name: CUSTOM"],
-            ["name: CUSTOM", "name: CUSTOM"],
-            [false, false],
-        );
-        f.pop_fmt_info();
+        let field = self;
+        let Self { name } = self;
+        let field = name;
+        ("name: CUSTOM").syntax_fmt(f)?;
         Ok(())
     }
 }
@@ -563,9 +563,9 @@ pub const test_format_literal: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 110usize,
+        start_line: 113usize,
         start_col: 4usize,
-        end_line: 110usize,
+        end_line: 113usize,
         end_col: 23usize,
         compile_fail: false,
         no_run: false,
@@ -581,7 +581,7 @@ fn test_format_literal() {
     match (
         &::alloc::__export::must_use({
             ::alloc::fmt::format(
-                format_args!("{0}", syntax_fmt(&WithFormatLiteral { name: "foo" })),
+                format_args!("{0}", syntax_fmt(&WithContentLiteral { name: "foo" })),
             )
         }),
         &"name: CUSTOM",
@@ -603,7 +603,7 @@ fn test_format_literal() {
             ::alloc::fmt::format(
                 format_args!(
                     "{0}",
-                    syntax_fmt(&WithFormatLiteral { name: "foo" }).pretty(),
+                    syntax_fmt(&WithContentLiteral { name: "foo" }).pretty(),
                 ),
             )
         }),
@@ -629,11 +629,9 @@ fn custom_formatter<State>(
     ctx.write_fmt(format_args!("{{{0}}} ", value))
 }
 struct WithCustomFormatter<'src> {
-    #[syntax(format = "value: {content}", content = custom_formatter)]
+    #[syntax(format = "value: {*}", content = custom_formatter)]
     value: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithCustomFormatter<'src>
 where
@@ -643,11 +641,12 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { value } = &self;
-        f.push_fmt_info(["value: ", "value: "], ["", ""], [true, true]);
-        let i = value;
-        (custom_formatter)(i, f)?;
-        f.pop_fmt_info();
+        let field = self;
+        let Self { value } = self;
+        let field = value;
+        f.write_strs(["value: ", "value: "]);
+        (custom_formatter)(field, f)?;
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -660,9 +659,9 @@ pub const test_custom_formatter: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 127usize,
+        start_line: 130usize,
         start_col: 4usize,
-        end_line: 127usize,
+        end_line: 130usize,
         end_col: 25usize,
         compile_fail: false,
         no_run: false,
@@ -751,11 +750,9 @@ fn resolve_formatter<State: NameResolver>(
 }
 #[syntax(state_bound = NameResolver)]
 struct WithStatefulFormatter<'src> {
-    #[syntax(format = "id: {content}", content = resolve_formatter)]
+    #[syntax(format = "id: {*}", content = resolve_formatter)]
     id: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for WithStatefulFormatter<'src>
 where
@@ -766,11 +763,12 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { id } = &self;
-        f.push_fmt_info(["id: ", "id: "], ["", ""], [true, true]);
-        let i = id;
-        (resolve_formatter)(i, f)?;
-        f.pop_fmt_info();
+        let field = self;
+        let Self { id } = self;
+        let field = id;
+        f.write_strs(["id: ", "id: "]);
+        (resolve_formatter)(field, f)?;
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -783,9 +781,9 @@ pub const test_stateful_formatter: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 158usize,
+        start_line: 161usize,
         start_col: 4usize,
-        end_line: 158usize,
+        end_line: 161usize,
         end_col: 27usize,
         compile_fail: false,
         no_run: false,
@@ -849,13 +847,15 @@ fn test_stateful_formatter() {
     };
 }
 struct Module<'src> {
-    #[syntax(format = "mod {content}")]
+    #[syntax(format = "mod {*}")]
     name: &'src str,
-    #[syntax(format = (" {{{content}}}", " {{\n{content}}}"), none = ";", indent_region)]
+    #[syntax(
+        format = (" {{{*}}}", " {{\n{*}}}"),
+        indent_region,
+        eval = |v:&Items<'src>|!v.is_empty(),
+    )]
     items: Items<'src>,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Module<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -865,17 +865,20 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { name, items } = &self;
-        f.push_fmt_info(["mod ", "mod "], ["", ""], [true, true]);
+        let field = self;
+        let Self { name, items } = self;
+        let field = name;
+        f.write_strs(["mod ", "mod "]);
         name.syntax_fmt(f)?;
-        f.pop_fmt_info();
-        f.push_fmt_info([" {{", " {{\n"], ["}}", "}}"], [true, true]);
-        f.push_indent();
-        f.set_none([";", ";"]);
-        items.syntax_fmt(f)?;
-        f.clear_none();
-        f.pop_indent();
-        f.pop_fmt_info();
+        f.write_strs(["", ""]);
+        let field = items;
+        if (|v: &Items<'src>| !v.is_empty())(field) {
+            f.write_strs([" {{", " {{\n"]);
+            f.push_indent();
+            items.syntax_fmt(f)?;
+            f.pop_indent();
+            f.write_strs(["}}", "}}"]);
+        }
         Ok(())
     }
 }
@@ -888,9 +891,9 @@ pub const test_indent_and_empty_suffix: test::TestDescAndFn = test::TestDescAndF
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 178usize,
+        start_line: 181usize,
         start_col: 4usize,
-        end_line: 178usize,
+        end_line: 181usize,
         end_col: 32usize,
         compile_fail: false,
         no_run: false,
@@ -988,14 +991,12 @@ fn test_indent_and_empty_suffix() {
         }
     };
 }
-#[syntax(format = ("&{content}", "ref {content}"))]
+#[syntax(format = ("&{*}", "ref {*}"))]
 struct RefType<'src> {
-    #[syntax(format = "mut ")]
+    #[syntax(content = "mut ")]
     is_mut: bool,
     value: &'src str,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for RefType<'src>
 where
     bool: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1005,13 +1006,14 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        f.push_fmt_info(["&", "ref "], ["", ""], [true, true]);
-        let Self { is_mut, value } = &self;
-        f.push_fmt_info(["mut ", "mut "], ["mut ", "mut "], [false, false]);
-        f.pop_fmt_info();
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        f.write_strs(["&", "ref "]);
+        let Self { is_mut, value } = self;
+        let field = is_mut;
+        ("mut ").syntax_fmt(f)?;
+        let field = value;
         value.syntax_fmt(f)?;
-        f.pop_fmt_info();
+        f.write_strs(["", ""]);
         Ok(())
     }
 }
@@ -1024,9 +1026,9 @@ pub const test_outer_format: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 198usize,
+        start_line: 201usize,
         start_col: 4usize,
-        end_line: 198usize,
+        end_line: 201usize,
         end_col: 21usize,
         compile_fail: false,
         no_run: false,
@@ -1121,8 +1123,6 @@ fn test_outer_format() {
     };
 }
 struct Ident<'src>(&'src str);
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Ident<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1131,8 +1131,9 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self(__0) = &self;
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        let Self(__0) = self;
+        let field = __0;
         __0.syntax_fmt(f)?;
         Ok(())
     }
@@ -1145,8 +1146,6 @@ struct Collections<'src> {
     #[syntax(delim = ", ")]
     array: [Ident<'src>; 2],
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for Collections<'src>
 where
@@ -1158,16 +1157,17 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { vec, slice, array } = &self;
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        let Self { vec, slice, array } = self;
+        let field = vec;
         f.push_delim([", ", ", "]);
         vec.syntax_fmt(f)?;
         f.pop_delim();
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = slice;
         f.push_delim([", ", ", "]);
         slice.syntax_fmt(f)?;
         f.pop_delim();
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = array;
         f.push_delim([", ", ", "]);
         array.syntax_fmt(f)?;
         f.pop_delim();
@@ -1183,9 +1183,9 @@ pub const test_collections: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 223usize,
+        start_line: 226usize,
         start_col: 4usize,
-        end_line: 223usize,
+        end_line: 226usize,
         end_col: 20usize,
         compile_fail: false,
         no_run: false,
@@ -1242,8 +1242,6 @@ fn test_collections() {
     };
 }
 struct PathSegment<'src>(&'src str);
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for PathSegment<'src>
 where
@@ -1253,8 +1251,9 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self(__0) = &self;
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        let Self(__0) = self;
+        let field = __0;
         __0.syntax_fmt(f)?;
         Ok(())
     }
@@ -1263,8 +1262,6 @@ struct QualifiedPath<'src> {
     #[syntax(delim = ("::", " :: "))]
     segments: Vec<PathSegment<'src>>,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>
 for QualifiedPath<'src>
 where
@@ -1274,8 +1271,9 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { segments } = &self;
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        let Self { segments } = self;
+        let field = segments;
         f.push_delim(["::", " :: "]);
         segments.syntax_fmt(f)?;
         f.pop_delim();
@@ -1291,9 +1289,9 @@ pub const test_collection_with_custom_delim: test::TestDescAndFn = test::TestDes
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 245usize,
+        start_line: 248usize,
         start_col: 4usize,
-        end_line: 245usize,
+        end_line: 248usize,
         end_col: 37usize,
         compile_fail: false,
         no_run: false,
@@ -1353,8 +1351,6 @@ fn test_collection_with_custom_delim() {
     };
 }
 struct Item<'src>(&'src str);
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for Item<'src>
 where
     &'src str: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1363,22 +1359,17 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self(__0) = &self;
-        f.push_fmt_info(["", ""], ["", ""], [false, false]);
+        let field = self;
+        let Self(__0) = self;
+        let field = __0;
         __0.syntax_fmt(f)?;
         Ok(())
     }
 }
 struct List<'src> {
-    #[syntax(
-        format = ("[{content}]", "[\n{content}\n]"),
-        indent_region,
-        delim = (", ", ",\n")
-    )]
+    #[syntax(format = ("[{*}]", "[\n{*}\n]"), indent_region, delim = (", ", ",\n"))]
     items: Vec<Item<'src>>,
 }
-#[deprecated = "Your warning message: consider doing X instead of Y"]
-const _: () = ();
 impl<'src, __SyntaxFmtState> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for List<'src>
 where
     Vec<Item<'src>>: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState>,
@@ -1387,14 +1378,16 @@ where
         &self,
         f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>,
     ) -> ::std::fmt::Result {
-        let Self { items } = &self;
-        f.push_fmt_info(["[", "[\n"], ["]", "\n]"], [true, true]);
+        let field = self;
+        let Self { items } = self;
+        let field = items;
+        f.write_strs(["[", "[\n"]);
         f.push_delim([", ", ",\n"]);
         f.push_indent();
         items.syntax_fmt(f)?;
         f.pop_indent();
         f.pop_delim();
-        f.pop_fmt_info();
+        f.write_strs(["]", "\n]"]);
         Ok(())
     }
 }
@@ -1407,9 +1400,9 @@ pub const test_collection_with_wrapper: test::TestDescAndFn = test::TestDescAndF
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 264usize,
+        start_line: 267usize,
         start_col: 4usize,
-        end_line: 264usize,
+        end_line: 267usize,
         end_col: 32usize,
         compile_fail: false,
         no_run: false,
@@ -1484,9 +1477,9 @@ pub const test_mutable_state: test::TestDescAndFn = test::TestDescAndFn {
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 286usize,
+        start_line: 289usize,
         start_col: 4usize,
-        end_line: 286usize,
+        end_line: 289usize,
         end_col: 22usize,
         compile_fail: false,
         no_run: false,
@@ -1577,9 +1570,9 @@ pub const test_immutable_state_panics_on_mut_access: test::TestDescAndFn = test:
         ignore: false,
         ignore_message: ::core::option::Option::None,
         source_file: "crates/syntaxfmt-macros/tests/basic.rs",
-        start_line: 298usize,
+        start_line: 301usize,
         start_col: 4usize,
-        end_line: 298usize,
+        end_line: 301usize,
         end_col: 45usize,
         compile_fail: false,
         no_run: false,

@@ -26,7 +26,7 @@
 //! #[derive(SyntaxFmt)]
 //! struct FunctionCall<'src> {
 //!     name: &'src str,
-//!     #[syntax(format = "({content})", pretty_format = "( {content} )")]
+//!     #[syntax(format = "({*})", pretty_format = "( {*} )")]
 //!     args: &'src str,
 //! }
 //!
@@ -48,14 +48,14 @@
 //!
 //! - `#[syntax(delim = ", ")]` - Delimiter between items of this type, used by Vec and slice implementations (default: `","`)
 //! - `#[syntax(pretty_delim = ",\n")]` - Delimiter in pretty mode (default: `", "`)
-//! - `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the whole type (default: `"{content}"`)
-//! - `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the whole type (default: `"{content}"`)
+//! - `#[syntax(format = "prefix{*}suffix")]` - For prefixes and suffixes around the whole type (default: `"{*}"`)
+//! - `#[syntax(pretty_format = "prefix{*}suffix")]` - For pretty prefixes and suffixes around the whole type (default: `"{*}"`)
 //! - `#[syntax(state_bound = "MyTrait")]` - Add trait bound for exposing functionality to custom formatter functions
 //!
 //! ## Field-level attributes
 //!
-//! - `#[syntax(format = "prefix{content}suffix")]` - For prefixes and suffixes around the field (default: `"{content}"`)
-//! - `#[syntax(pretty_format = "prefix{content}suffix")]` - For pretty prefixes and suffixes around the field (default: `"{content}"`)
+//! - `#[syntax(format = "prefix{*}suffix")]` - For prefixes and suffixes around the field (default: `"{*}"`)
+//! - `#[syntax(pretty_format = "prefix{*}suffix")]` - For pretty prefixes and suffixes around the field (default: `"{*}"`)
 //! - `#[syntax(content = my_formatter)]` - Custom content formatter function
 //! - `#[syntax(empty_suffix = ";")]` - Early out with this string when field is empty (for types which implement `is_empty()` function)
 //! - `#[syntax(indent)]` - Write indentation before this field (pretty mode only)
@@ -72,10 +72,10 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! #[syntax(format = "let {content};")]
+//! #[syntax(format = "let {*};")]
 //! struct LetStatement<'src> {
 //!     name: &'src str,
-//!     #[syntax(format = " = {content}")]
+//!     #[syntax(format = " = {*}")]
 //!     value: &'src str,
 //! }
 //!
@@ -93,13 +93,13 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! #[syntax(format = "{content};")]
+//! #[syntax(format = "{*};")]
 //! struct ConstStatement<'src> {
 //!     #[syntax(format = "pub ")]
 //!     is_pub: bool,
-//!     #[syntax(format = "const {content}: i32")]
+//!     #[syntax(format = "const {*}: i32")]
 //!     name: &'src str,
-//!     #[syntax(format = " = {content}")]
+//!     #[syntax(format = " = {*}")]
 //!     value: Option<i32>,
 //! }
 //!
@@ -139,15 +139,15 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Statement<'src> {
-//!     #[syntax(format = "{content};", indent)]
+//!     #[syntax(format = "{*};", indent)]
 //!     code: &'src str,
 //! }
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Block<'src> {
 //!     #[syntax(
-//!         format = "{{{content}}}",
-//!         pretty_format = "{{\n{content}\n}}",
+//!         format = "{{{*}}}",
+//!         pretty_format = "{{\n{*}\n}}",
 //!         indent_region
 //!     )]
 //!     body: Statement<'src>,
@@ -176,10 +176,10 @@
 //! struct Statement<'src>(&'src str);
 //!
 //! #[derive(SyntaxFmt)]
-//! #[syntax(format = "mod {content}")]
+//! #[syntax(format = "mod {*}")]
 //! struct Module<'src> {
 //!     name: &'src str,
-//!     #[syntax(format = " {{{content}}}", empty_suffix = ";")]
+//!     #[syntax(format = " {{{*}}}", empty_suffix = ";")]
 //!     items: Vec<Statement<'src>>,
 //! }
 //!
@@ -306,7 +306,6 @@ pub enum Mode {
 
 pub const NUM_MODES: usize = 2;
 pub type Strs = [&'static str; NUM_MODES];
-pub type Bools = [bool; NUM_MODES];
 
 type Strings = [String; NUM_MODES];
 
@@ -366,8 +365,6 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     single_indent: Strs,
     indent: Strings,
     delim_stack: Vec<Strs>,
-    fmt_info_stack: Vec<(Strs, Strs, Bools)>,
-    none: Option<Strs>,
 }
 
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
@@ -381,8 +378,6 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
             single_indent: indent,
             indent: Default::default(),
             delim_stack: Vec::new(),
-            fmt_info_stack: Vec::new(),
-            none: None,
         }
     }
 
@@ -421,46 +416,6 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         write!(self.f, "{}", strs[self.imode()])
     }
 
-    /// Pushes format info (prefix, suffix, want_content) onto the stack.
-    #[inline]
-    pub fn push_fmt_info(&mut self, prefix: Strs, suffix: Strs, want_content: Bools) {
-        self.fmt_info_stack.push((prefix, suffix, want_content));
-    }
-
-    /// Pops format info from the stack.
-    #[inline]
-    pub fn pop_fmt_info(&mut self) {
-        self.fmt_info_stack.pop();
-    }
-
-    /// Writes the current prefix from the format info stack.
-    #[inline]
-    pub fn write_prefix(&mut self) -> FmtResult {
-        if let Some((prefix, _, _)) = self.fmt_info_stack.last() {
-            write!(self.f, "{}", prefix[self.imode()])
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Writes the current suffix from the format info stack.
-    #[inline]
-    pub fn write_suffix(&mut self) -> FmtResult {
-        if let Some((_, suffix, _)) = self.fmt_info_stack.last() {
-            write!(self.f, "{}", suffix[self.imode()])
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Returns true if the current format info wants content.
-    #[must_use]
-    #[inline]
-    pub fn want_content(&self) -> bool {
-        let i = self.imode();
-        self.fmt_info_stack.last().map_or(true, |(_, _, want)| want[i])
-    }
-
     /// Increases the indentation level by one.
     #[inline]
     pub fn push_indent(&mut self) {
@@ -497,23 +452,6 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         let delim = self.delim_stack.last().copied();
         let delim = delim.unwrap_or([",", ", "]);
         write!(self.f, "{}", delim[self.imode()])
-    }
-
-    /// Sets empty exit flag (usually for purposes of checking for None, false, or is_empty(), and exiting early)
-    pub fn set_none(&mut self, suffix: Strs) {
-        self.none = Some(suffix);
-    }
-
-    /// Clears empty exit flag (in case field didn't take it)
-    pub fn clear_none(&mut self) {
-        self.none = None;
-    }
-
-    /// Consumes and returns empty exit (with suffix)
-    #[must_use]
-    #[inline]
-    pub fn take_none(&mut self) -> Option<Strs> {
-        self.none.take()
     }
 }
 
@@ -613,7 +551,7 @@ where
 ///
 /// #[derive(SyntaxFmt)]
 /// struct Expr<'src> {
-///     #[syntax(format = "({content})", pretty_format = "( {content} )")]
+///     #[syntax(format = "({*})", pretty_format = "( {*} )")]
 ///     value: &'src str,
 /// }
 ///
@@ -687,44 +625,20 @@ impl_syntax_fmt_display!(
     i8, i16, i32, i64, i128, isize,
     u8, u16, u32, u64, u128, usize,
     f32, f64,
-    char,
+    char, bool,
     str, String // #TODO OsStr, OsString
 );
 
-impl<S> SyntaxFmt<S> for bool {
-    fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
-        if let Some(suffix) = f.take_none() {
-            if !*self {
-                return f.write_strs(suffix);
-            }
-        }
-
-        f.write_prefix()?;
-        if f.want_content() {
-            write!(f, "{}", *self)?;
-        }
-        f.write_suffix()?;
-        Ok(())
-    }
-}
-
 impl<S, E> SyntaxFmt<S> for Option<E> where E: SyntaxFmt<S> {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
-        if let Some(suffix) = f.take_none() {
-            if self.is_none() {
-                return f.write_strs(suffix);
-            }
+        match self {
+            Some(inner) => {
+                inner.syntax_fmt(f)
+            },
+            None => {
+                write!(f, "None")
+            },
         }
-
-        if let Some(value) = self {
-            f.write_prefix()?;
-            if f.want_content() {
-                value.syntax_fmt(f)?;
-            }
-            f.write_suffix()?;
-        }
-
-        Ok(())
     }
 }
 
@@ -743,27 +657,17 @@ where
     E: SyntaxFmt<S>,
 {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
-        if let Some(suffix) = f.take_none() {
-            if self.is_empty() {
-                return f.write_strs(suffix);
+        for (i, elem) in self.iter().enumerate() {
+            if i > 0 {
+                f.write_delim()?;
             }
-        }
-
-        f.write_prefix()?;
-        if f.want_content() {
-            for (i, elem) in self.iter().enumerate() {
-                if i > 0 {
-                    f.write_delim()?;
-                }
-                if f.mode() == Mode::Pretty {
-                    // This might need some work
-                    // maybe a write_newline function which deals with indentation?
-                    f.write_indent()?;
-                }
-                elem.syntax_fmt(f)?;
+            if f.mode() == Mode::Pretty {
+                // This might need some work
+                // maybe a write_newline function which deals with indentation?
+                f.write_indent()?;
             }
+            elem.syntax_fmt(f)?;
         }
-        f.write_suffix()?;
         Ok(())
     }
 }
@@ -846,16 +750,12 @@ macro_rules! impl_syntax_fmt_tuple {
             $($T: SyntaxFmt<S>,)+
         {
             fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
-                f.write_prefix()?;
-                if f.want_content() {
-                    $(
-                        if $idx > 0 {
-                            f.write_delim()?;
-                        }
-                        self.$idx.syntax_fmt(f)?;
-                    )+
-                }
-                f.write_suffix()?;
+                $(
+                    if $idx > 0 {
+                        f.write_delim()?;
+                    }
+                    self.$idx.syntax_fmt(f)?;
+                )+
                 Ok(())
             }
         }

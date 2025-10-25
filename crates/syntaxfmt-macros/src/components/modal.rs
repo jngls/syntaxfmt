@@ -4,33 +4,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::{Expr, ExprLit, ExprTuple, Lit};
 
-use crate::{components::{parse_tokens::ParseTokens}, SyntaxError};
+use crate::{components::{parse_basic::ParseBasic}, SyntaxError};
+
+#[cfg(feature = "trace")]
+use crate::{trace, DEPTH};
 
 pub const NUM_MODES: usize = 2;
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Bools(pub [bool; NUM_MODES]);
-
-impl Index<usize> for Bools {
-    type Output = bool;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl IndexMut<usize> for Bools {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl ToTokens for Bools {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let bools = &self.0;
-        tokens.extend(quote! { [#(#bools),*] });
-    }
-}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Strings(pub [String; NUM_MODES]);
@@ -49,10 +28,11 @@ impl IndexMut<usize> for Strings {
     }
 }
 
-impl ParseTokens for Strings {
+impl<'a> ParseBasic<'a> for Strings {
     type Input = Expr;
 
-    fn parse_tokens(expr: &Self::Input) -> Result<Self, SyntaxError> {
+    #[cfg_attr(feature = "trace", trace)]
+    fn parse_basic(expr: &Self::Input) -> Result<Self, SyntaxError> {
         match expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
@@ -64,7 +44,7 @@ impl ParseTokens for Strings {
                 let mut strs = Strings::default();
                 let mut i = 0;
                 for (s, e) in strs.0.iter_mut().zip(elems) {
-                    *s = String::parse_tokens(e)?;
+                    *s = String::parse_basic(e)?;
                     i += 1;
                 }
                 if i != NUM_MODES {
@@ -78,6 +58,7 @@ impl ParseTokens for Strings {
 }
 
 impl ToTokens for Strings {
+    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let strs = &self.0;
         tokens.extend(quote! { [#(#strs),*] });
