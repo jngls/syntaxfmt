@@ -2,7 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote_spanned, ToTokens};
 use syn::{punctuated::Punctuated, token::Comma, Ident, Type, Variant};
 
-use crate::{components::{attributes::Attributes, content::Content, parse_basic::ParseBasic}, intermediate::{fields::{SyntaxFields, SyntaxFieldsDecl}, parse_type::ParseType}, SyntaxError};
+use crate::{components::{attributes::Attributes, content::Content}, intermediate::{fields::{SyntaxFields, SyntaxFieldsDecl}, parse_type::ParseType}, SyntaxError};
 
 #[cfg(feature = "trace")]
 use crate::{trace, DEPTH};

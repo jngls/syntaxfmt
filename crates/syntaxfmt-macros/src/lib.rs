@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::{parse_macro_input, token::Union, DeriveInput, Error as SynError, Expr, Ident, Meta, MetaList, Path};
+use syn::{parse_macro_input, token::Union, DeriveInput, Error as SynError, Expr, Meta, MetaList, Path};
 
 use crate::intermediate::{parse_type::ParseType, ty::SyntaxType};
 
@@ -49,7 +49,7 @@ If you simply want to replace the content, please use the `content = \"xyz\"` ar
                 SyntaxError::ExpectedMetaList(t) =>
                     SynError::new_spanned(t, "syntaxfmt argument expected meta list"),
                 SyntaxError::ExpectedCondition(t) =>
-                    SynError::new_spanned(t, "syntaxfmt argument expected `condition` argument"),
+                    SynError::new_spanned(t, "syntaxfmt argument expected `eval` argument"),
                 SyntaxError::UnexpectedAttributeArg(t) =>
                     SynError::new_spanned(t, "syntaxfmt unexpected attribute argument"),
                 SyntaxError::UnexpectedAttributeType(t) =>

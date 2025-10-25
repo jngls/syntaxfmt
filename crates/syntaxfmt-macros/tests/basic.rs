@@ -173,6 +173,7 @@ struct Module<'src> {
         format = (" {{{*}}}", " {{\n{*}}}"),
         indent_region,
         eval = |v: &Items<'src>| !v.is_empty(),
+        else_content = ";",
     )]
     items: Items<'src>,
 }
