@@ -7,7 +7,7 @@ use syn::{punctuated::Punctuated, token::Comma, Attribute, Expr, ExprPath, Meta,
 
 use crate::{
     components::{
-        content::Content, delims::{PopDelims, PushDelims}, eval::Eval, format::Format, indent::{PopIndentRegion, PushIndentRegion, WriteNewline}, parse_basic::ParseBasic
+        content::Content, delims::{PopDelims, PushDelims}, eval::Eval, format::{Prefix, Suffix}, indent::{PopIndentRegion, PushIndentRegion, WriteNewline}, parse_basic::ParseBasic
     }, SyntaxError
 };
 
@@ -29,7 +29,7 @@ impl<'a> ParseBasic<'a> for Newline {
                     Ok(Self::Begin)
                 } else if path.is_ident("pre") {
                     Ok(Self::Prefix)
-                } else if path.is_ident("con") {
+                } else if path.is_ident("cont") {
                     Ok(Self::Content)
                 } else if path.is_ident("suf") {
                     Ok(Self::Suffix)
@@ -88,7 +88,8 @@ impl<'a> ParseBasic<'a> for ParsedMetaPath {
 
 #[derive(Debug, Clone)]
 enum ParsedMetaNameValue {
-    Format(Format),
+    Prefix(Prefix),
+    Suffix(Suffix),
     Delims(PushDelims),
     Eval(Eval),
     Content(Content),
@@ -104,8 +105,10 @@ impl<'a> ParseBasic<'a> for ParsedMetaNameValue {
         let path = &input.path;
         let value = &input.value;
 
-        if path.is_ident("fmt") {
-            Ok(Self::Format(Format::parse_basic(value)?))
+        if path.is_ident("pre") {
+            Ok(Self::Prefix(Prefix::parse_basic(value)?))
+        } else if path.is_ident("suf") {
+            Ok(Self::Suffix(Suffix::parse_basic(value)?))
         } else if path.is_ident("delim") {
             Ok(Self::Delims(PushDelims::parse_basic(value)?))
         } else if path.is_ident("eval") {
@@ -202,7 +205,8 @@ impl<'a> ParseBasic<'a> for ParsedAttributesElse {
 #[derive(Debug, Default, Clone)]
 pub struct Attributes {
     pub skip: Option<Path>,
-    pub format: Option<Format>,
+    pub prefix: Option<Prefix>,
+    pub suffix: Option<Suffix>,
     pub delims: Option<PushDelims>,
     pub eval: Option<Eval>,
     pub content: Option<Content>,
@@ -223,7 +227,8 @@ impl Attributes {
                 ParsedMeta::Path(ParsedMetaPath::Indent) => attrs.indent = true,
                 ParsedMeta::Path(ParsedMetaPath::Newline) => attrs.nl_suffix = true,
                 ParsedMeta::Path(ParsedMetaPath::Skip(path)) => attrs.skip = Some(path),
-                ParsedMeta::NameValue(ParsedMetaNameValue::Format(f)) => attrs.format = Some(f),
+                ParsedMeta::NameValue(ParsedMetaNameValue::Prefix(f)) => attrs.prefix = Some(f),
+                ParsedMeta::NameValue(ParsedMetaNameValue::Suffix(f)) => attrs.suffix = Some(f),
                 ParsedMeta::NameValue(ParsedMetaNameValue::Delims(d)) => attrs.delims = Some(d),
                 ParsedMeta::NameValue(ParsedMetaNameValue::Eval(c)) => attrs.eval = Some(c),
                 ParsedMeta::NameValue(ParsedMetaNameValue::Content(c)) => attrs.content = Some(c),
@@ -308,13 +313,8 @@ impl Attributes {
     }
 
     fn to_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2 {
-        let (prefix, suffix) = match &self.format {
-            Some(f) => {
-                let (prefix, suffix) = f.split();
-                (Some(prefix), Some(suffix))
-            }
-            None => Default::default(),
-        };
+        let prefix = &self.prefix;
+        let suffix = &self.suffix;
 
         let (push_delims, pop_delims) = match &self.delims {
             Some(d) => (Some(d), Some(PopDelims)),

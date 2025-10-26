@@ -55,7 +55,7 @@ fn test_outer_skip() {
 #[derive(SyntaxFmtDerive)]
 struct WithIndent {
     header: &'static str,
-    #[syntax(ind, nl = [pre, con])]
+    #[syntax(ind, nl = [pre, cont])]
     body: &'static str,
     footer: &'static str,
 }
@@ -66,16 +66,16 @@ fn test_indent_pretty() {
     assert_eq!(format!("{}", syntax_fmt(&s)), "indent {foo}");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "indent {\n    foo\n}");
     //                                                          ^        ^
-    //                                                         pre      con
+    //                                                         pre      cont
 }
 
 #[derive(SyntaxFmtDerive)]
 struct WithNestedIndent {
     header: &'static str,
     // We're using explicit fields here to add header and footer to better isolate tests.
-    // But in practice you could just use: `ind, fmt = "header{*}footer", nl = [pre, con]`
+    // But in practice you could just use: `ind, fmt = "header{*}footer", nl = [pre, cont]`
     // to add header, footer, and appropriate newlines.
-    #[syntax(ind, nl = [pre, con])]
+    #[syntax(ind, nl = [pre, cont])]
     body: WithIndent,
     footer: &'static str,
 }
@@ -94,14 +94,14 @@ fn test_nested_indent_pretty() {
     assert_eq!(format!("{}", syntax_fmt(&s)), "outer {inner {foo}}");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "outer {\n    inner {\n        foo\n    }\n}");
     //                                                         ^            ^            ^      ^
-    //                                                 outer: beg           |            |     con
-    //                                                 inner:              beg          con
+    //                                                 outer: beg           |            |     cont
+    //                                                 inner:              beg          cont
 }
 
 // We need to force a newline with this one - in practice, newline would come
 // from the previous element
 #[derive(SyntaxFmtDerive)]
-#[syntax(ind, nl = beg)]
+#[syntax(ind, nl = pre)]
 struct WithOuterIndent {
     indented: &'static str,
 }
@@ -114,44 +114,44 @@ fn test_outer_indent_pretty() {
 }
 
 // =============================================================================
-// format (prefix and suffix)
+// prefix and suffix
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
-struct WithFormat {
-    #[syntax(fmt = "prefix_{*}_suffix")]
+struct WithPreSuf {
+    #[syntax(pre = "prefix_", suf = "_suffix")]
     field: &'static str,
 }
 
 #[test]
 fn test_format_prefix_suffix() {
-    let s = WithFormat { field: "value" };
+    let s = WithPreSuf { field: "value" };
     assert_eq!(format!("{}", syntax_fmt(&s)), "prefix_value_suffix");
 }
 
 #[derive(SyntaxFmtDerive)]
-struct WithModalFormat {
+struct WithModalPreSuf {
     // NOTE - modal args follow order defined in syntaxfmt::Mode
-    #[syntax(fmt = ["normal[{*}]", "pretty[ {*} ]"])]
+    #[syntax(pre = ["normal[", "pretty[ "], suf = ["]", " ]"])]
     field: &'static str,
 }
 
 #[test]
 fn test_modal_format() {
-    let s = WithModalFormat { field: "x" };
+    let s = WithModalPreSuf { field: "x" };
     assert_eq!(format!("{}", syntax_fmt(&s)), "normal[x]");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "pretty[ x ]");
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(fmt = "outer<{*}>")]
-struct WithOuterFormat {
+#[syntax(pre = "outer<", suf = ">")]
+struct WithOuterPreSuf {
     inner: &'static str,
 }
 
 #[test]
 fn test_format_outer() {
-    let s = WithOuterFormat { inner: "value" };
+    let s = WithOuterPreSuf { inner: "value" };
     assert_eq!(format!("{}", syntax_fmt(&s)), "outer<value>");
 }
 

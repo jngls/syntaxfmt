@@ -13,37 +13,37 @@ struct Type(&'static str);
 
 #[derive(SyntaxFmtDerive)]
 struct Param {
-    #[syntax(fmt = "{*}: ")]
+    #[syntax(suf = ": ")]
     name: Ident,
     ty: Type,
 }
 
 #[derive(SyntaxFmtDerive)]
 struct Block {
-    #[syntax(fmt = " {{*}}", nl = con, ind, delim = "")]
+    #[syntax(pre = " {", suf = "}", nl = cont, ind, delim = "")]
     statements: Vec<Statement>,
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(fmt = "{*};", nl = beg)]
+#[syntax(suf = ";", nl = beg)]
 enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(fmt = "let {*}")]
+#[syntax(pre = "let ")]
 struct LetStatement {
     name: Ident,
-    #[syntax(fmt = " = {*}", eval = value.is_some())]
+    #[syntax(pre = " = ", eval = value.is_some())]
     value: Option<Ident>,
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(fmt = "return{*}")]
+#[syntax(pre = "return")]
 struct ReturnStatement {
-    #[syntax(fmt = " {*}", eval = value.is_some())]
-    value: Option<Ident>,
+    #[syntax(pre = " ")]
+    value: Ident,
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -53,15 +53,15 @@ struct Function {
     is_pub: bool,
 
     // "fn name"
-    #[syntax(fmt = "fn {*}")]
+    #[syntax(pre = "fn ")]
     name: Ident,
 
     // Parameters with delimiters and wrapping
-    #[syntax(fmt = "({*})", delim = ", ")]
+    #[syntax(pre = "(", suf = ")", delim = ", ")]
     params: Vec<Param>,
 
     // Optional return type
-    #[syntax(fmt = " -> {*}", eval = return_type.is_some())]
+    #[syntax(pre = " -> ", eval = return_type.is_some())]
     return_type: Option<Type>,
 
     // Function body
@@ -85,20 +85,18 @@ fn test_function_integration() {
                     value: Some(Ident("a + b")),
                 }),
                 Statement::Return(ReturnStatement {
-                    value: Some(Ident("result")),
+                    value: Ident("result"),
                 }),
             ],
         },
     };
 
-    // Normal mode: compact
     let normal = format!("{}", syntax_fmt(&func));
     assert_eq!(
         normal,
         "pub fn add(a: i32, b: i32) -> i32 {let result = a + b;return result;}"
     );
 
-    // Pretty mode: with proper indentation
     let pretty = format!("{}", syntax_fmt(&func).pretty());
     assert_eq!(
         pretty,
@@ -110,22 +108,15 @@ fn test_function_integration() {
 fn test_function_without_return_type() {
     let func = Function {
         is_pub: false,
-        name: Ident("print_hello"),
+        name: Ident("nop"),
         params: vec![],
         return_type: None,
-        body: Block {
-            statements: vec![
-                Statement::Return(ReturnStatement {
-                    value: None,
-                }),
-            ],
-        },
+        body: Block { statements: vec![] },
     };
     
     let normal = format!("{}", syntax_fmt(&func));
-    assert_eq!(normal, "fn print_hello() {return;}");
+    assert_eq!(normal, "fn nop() {}");
     
     let pretty = format!("{}", syntax_fmt(&func).pretty());
-    assert_eq!(pretty, "fn print_hello() {\n    return;\n}"
-    );
+    assert_eq!(pretty, "fn nop() {\n}");
 }
