@@ -49,6 +49,7 @@ impl ToTokens for SyntaxTypeKind {
             Self::Enum(inner) => {
                 let span = inner.span();
                 tokens.extend(quote_spanned! { span =>
+                    #[allow(unreachable_patterns)]
                     match self {
                         #inner
                         _ => {}

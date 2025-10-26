@@ -7,7 +7,8 @@
 - [x] Else content
 - [x] Invert logic and simplify eval and content matches
 - [x] Explicit newline args and newline() api in SyntaxFormatter
-- [ ] syntax_else
+- [x] syntax_else
+- [ ] compile failure on empty struct
 - [ ] Support OsString, OsStr, CString, CStr
 - [ ] Convert everything to references
 - [ ] Refactor tests

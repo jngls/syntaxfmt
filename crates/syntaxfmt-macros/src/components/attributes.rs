@@ -336,29 +336,10 @@ impl Attributes {
 
         // Push and pop indent has to be in non-symmetric location
         // This is because indenting is non-symmetric
-        let pre = quote! { #push_indent #nl_begin #prefix #nl_prefix #push_delims };
-        let post = quote! { #pop_indent #nl_content #pop_delims #suffix #nl_suffix };
+        let pre = quote! { #nl_begin #prefix #push_indent #nl_prefix #push_delims };
+        let post = quote! { #pop_delims #pop_indent #nl_content #suffix #nl_suffix };
 
         quote! { #pre #content #post }
-
-        // let eval = self.eval.as_ref().map(|c| c.to_tokens(field));
-
-        // match (eval, else_content) {
-        //     (Some(eval), Some(else_content)) => quote! {
-        //         if #eval {
-        //             #pre #content #post
-        //         } else {
-        //             // TODO need else_format
-        //             #else_content
-        //         }
-        //     },
-        //     (Some(eval), None) => quote! {
-        //         if #eval {
-        //             #pre #content #post
-        //         }
-        //     },
-        //     _ => quote! { #pre #content #post },
-        // }
     }
 
     pub fn to_conditional_tokens(attrs: &Self, attrs_else: &Option<Self>, field: &impl ToTokens, default_content: &Content) -> TokenStream2 {

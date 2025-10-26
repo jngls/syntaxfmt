@@ -65,7 +65,7 @@ pub struct WritePrefix<'a>(pub &'a Strings);
 impl<'a> ToTokens for WritePrefix<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let prefix = self.0;
-        tokens.extend(quote! { f.write_strs(#prefix); });
+        tokens.extend(quote! { f.write_strs(#prefix)?; });
     }
 }
 
@@ -75,6 +75,6 @@ pub struct WriteSuffix<'a>(pub &'a Strings);
 impl<'a> ToTokens for WriteSuffix<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let suffix = self.0;
-        tokens.extend(quote! { f.write_strs(#suffix); });
+        tokens.extend(quote! { f.write_strs(#suffix)?; });
     }
 }

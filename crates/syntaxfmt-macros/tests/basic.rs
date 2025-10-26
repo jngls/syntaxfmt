@@ -55,10 +55,7 @@ fn test_outer_skip() {
 #[derive(SyntaxFmtDerive)]
 struct WithIndent {
     header: &'static str,
-    // We're using explicit fields here to add header and footer to better isolate tests.
-    // But in practice you could use: `fmt = "header{*}footer", nl = pre` on the struct and
-    // `ind, nl` on the field to add header, footer, and appropriate newlines.
-    #[syntax(nl = [beg, con], ind)]
+    #[syntax(ind, nl = [pre, con])]
     body: &'static str,
     footer: &'static str,
 }
@@ -69,17 +66,16 @@ fn test_indent_pretty() {
     assert_eq!(format!("{}", syntax_fmt(&s)), "indent {foo}");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "indent {\n    foo\n}");
     //                                                          ^        ^
-    //                                                         beg      con
+    //                                                         pre      con
 }
 
-// Need explicit newline api to get rid of the format newlines and need for extra indenting 
 #[derive(SyntaxFmtDerive)]
 struct WithNestedIndent {
     header: &'static str,
     // We're using explicit fields here to add header and footer to better isolate tests.
     // But in practice you could just use: `ind, fmt = "header{*}footer", nl = [pre, con]`
     // to add header, footer, and appropriate newlines.
-    #[syntax(nl = [beg, con], ind)]
+    #[syntax(ind, nl = [pre, con])]
     body: WithIndent,
     footer: &'static str,
 }
