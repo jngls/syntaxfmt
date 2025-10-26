@@ -1,16 +1,10 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{
-    DeriveInput, Error as SynError, Expr, Meta, MetaList, Path, parse_macro_input, token::Union,
+    parse_macro_input, token::Union, DeriveInput, Error as SynError, Expr, Meta, MetaList, Path
 };
 
 use crate::intermediate::{parse_type::ParseType, ty::SyntaxType};
-
-#[cfg(feature = "trace")]
-use trace::{init_depth_var, trace};
-
-#[cfg(feature = "trace")]
-init_depth_var!();
 
 mod components;
 mod intermediate;
@@ -26,6 +20,7 @@ enum SyntaxError {
     ExpectedCondition(Path),
     UnexpectedAttributeArg(Path),
     UnexpectedAttributeType(Meta),
+    UnexpectedConditionalExpr(Expr),
     UnsupportedNewlinePath(Path),
     UnsupportedNewlineExpr(Expr),
     UnsupportedContentExpr(Expr),
@@ -80,7 +75,7 @@ fn expr_to_str(expr: &Expr) -> &'static str {
     }
 }
 
-#[proc_macro_derive(SyntaxFmt, attributes(syntax))]
+#[proc_macro_derive(SyntaxFmt, attributes(syntax, syntax_else))]
 pub fn derive_syntax_fmt(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -107,6 +102,8 @@ If you simply want to replace the content, please use the `content = \"xyz\"` ar
                     SynError::new_spanned(t, "syntaxfmt unexpected attribute argument"),
                 SyntaxError::UnexpectedAttributeType(t) =>
                     SynError::new_spanned(t, "syntaxfmt unexpected attribute argument type"),
+                SyntaxError::UnexpectedConditionalExpr(t) =>
+                    SynError::new_spanned(t, "syntaxfmt unexpected conditional expression"),
                 SyntaxError::UnsupportedNewlinePath(t) => {
                     SynError::new_spanned(t.clone(), format!("syntaxfmt unsupported newline argument: {}", t.get_ident().map(|i| i.to_string()).unwrap_or(String::from("unknown"))))
                 }

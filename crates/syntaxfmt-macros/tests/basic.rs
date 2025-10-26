@@ -4,7 +4,7 @@ use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
 use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
 
 // =============================================================================
-// Test: skip
+// skip
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -118,7 +118,7 @@ fn test_outer_indent_pretty() {
 }
 
 // =============================================================================
-// Test: format (prefix and suffix)
+// format (prefix and suffix)
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -160,7 +160,7 @@ fn test_format_outer() {
 }
 
 // =============================================================================
-// Test: content - basic forms
+// content - basic forms
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -202,7 +202,7 @@ fn test_outer_content() {
 }
 
 // =============================================================================
-// Test: content - path or closure treated as formatter
+// content - path or closure treated as formatter
 // =============================================================================
 
 fn my_formatter<S>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
@@ -262,7 +262,7 @@ fn test_outer_content_closure_as_formatter() {
 }
 
 // =============================================================================
-// Test: content - slices are modal
+// content - slices are modal
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -292,7 +292,7 @@ fn test_outer_content_modal_slice() {
 }
 
 // =============================================================================
-// Test: delim
+// delim
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -347,7 +347,7 @@ fn test_outer_delim() {
 }
 
 // =============================================================================
-// Test: eval - basic (referencing fields by name)
+// eval - basic (referencing fields by name)
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
@@ -401,7 +401,7 @@ fn test_outer_eval() {
 }
 
 // =============================================================================
-// Test: eval - closures and paths have field passed to them
+// eval - closures and paths have field passed to them
 // =============================================================================
 
 fn is_long(s: &str) -> bool {
@@ -471,53 +471,29 @@ fn test_outer_eval_closure() {
     let without_a = WithOuterEvalClosure { text: "orange" };
     assert_eq!(format!("{}", syntax_fmt(&without_a)), "");
 }
-/*
+
 // =============================================================================
-// Test: eval and else_content
+// eval and else
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
 struct WithElseContent {
-    #[syntax(
-        format = "some: {*}",
-        eval = value.is_some(),
-        else_content = "none"
-    )]
+    #[syntax(eval = value.is_some())]
+    #[syntax_else(cont = "none")]
     value: Option<&'static str>,
 }
 
 #[test]
 fn test_eval_else_content() {
     let some = WithElseContent { value: Some("data") };
-    assert_eq!(format!("{}", syntax_fmt(&some)), "some: data");
+    assert_eq!(format!("{}", syntax_fmt(&some)), "data");
 
     let none = WithElseContent { value: None };
     assert_eq!(format!("{}", syntax_fmt(&none)), "none");
 }
 
-#[derive(SyntaxFmtDerive)]
-struct ModuleDecl {
-    #[syntax(format = "mod {*}")]
-    name: &'static str,
-    #[syntax(
-        format = " {{ {*} }}",
-        eval = |items: &&[&str]| !items.is_empty(),
-        else_content = ";"
-    )]
-    items: &'static [&'static str],
-}
-
-#[test]
-fn test_eval_else_content_complex() {
-    let with_items = ModuleDecl { name: "lib", items: &["item1", "item2"] };
-    assert_eq!(format!("{}", syntax_fmt(&with_items)), "mod lib { item1item2 }");
-
-    let empty = ModuleDecl { name: "empty", items: &[] };
-    assert_eq!(format!("{}", syntax_fmt(&empty)), "mod empty;");
-}
-
 // =============================================================================
-// Test: state - immutable and mutable
+// state - immutable and mutable
 // =============================================================================
 
 trait Resolver {
@@ -532,48 +508,81 @@ impl Resolver for TestResolver {
     }
 }
 
-fn resolve_formatter<S: Resolver>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+fn resolve_formatter(field: &str, f: &mut SyntaxFormatter<TestResolver>) -> std::fmt::Result {
     let resolved = f.state().resolve(field);
     write!(f, "{}", resolved)
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(state_bound = Resolver)]
-struct WithImmutableState {
-    #[syntax(content = resolve_formatter)]
+#[syntax(state = TestResolver)]
+struct WithImmutable {
+    #[syntax(cont = resolve_formatter)]
     name: &'static str,
 }
 
 #[test]
 fn test_immutable_state() {
     let resolver = TestResolver;
-    let s = WithImmutableState { name: "foo" };
+    let s = WithImmutable { name: "foo" };
     assert_eq!(
         format!("{}", syntax_fmt(&s).state(&resolver)),
         "resolved_foo"
     );
 }
 
-struct Counter {
+fn resolve_formatter_bounded<S: Resolver>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+    let resolved = f.state().resolve(field);
+    write!(f, "{}", resolved)
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = Resolver)]
+struct WithImmutableBounded {
+    #[syntax(cont = resolve_formatter_bounded)]
+    name: &'static str,
+}
+
+#[test]
+fn test_immutable_state_bounded() {
+    let resolver = TestResolver;
+    let s = WithImmutableBounded { name: "foo" };
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state(&resolver)),
+        "resolved_foo"
+    );
+}
+
+trait Counter {
+    fn post_inc(&mut self) -> usize;
+}
+
+struct TestCounter {
     count: usize,
 }
 
-fn counting_formatter(field: &str, f: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
-    let count = f.state_mut().count;
-    f.state_mut().count += 1;
+impl Counter for TestCounter {
+    fn post_inc(&mut self) -> usize {
+        let count = self.count;
+        self.count += 1;
+        count
+    }
+}
+
+fn counting_formatter(field: &str, f: &mut SyntaxFormatter<TestCounter>) -> std::fmt::Result {
+    let count = f.state_mut().post_inc();
     write!(f, "{}#{}", field, count)
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(state = Counter)]
+#[syntax(state = TestCounter)]
 struct WithMutableState {
-    #[syntax(content = counting_formatter)]
+    #[syntax(cont = counting_formatter)]
     name: &'static str,
 }
 
 #[test]
 fn test_mutable_state() {
-    let mut counter = Counter { count: 0 };
+    let mut counter = TestCounter { count: 0 };
     let s = WithMutableState { name: "item" };
 
     assert_eq!(
@@ -589,28 +598,56 @@ fn test_mutable_state() {
     assert_eq!(counter.count, 2);
 }
 
+fn counting_formatter_bounded<S: Counter>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+    let count = f.state_mut().post_inc();
+    write!(f, "{}#{}", field, count)
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = Counter)]
+struct WithMutableStateBounded {
+    #[syntax(cont = counting_formatter_bounded)]
+    name: &'static str,
+}
+
+#[test]
+fn test_mutable_state_bounded() {
+    let mut counter = TestCounter { count: 0 };
+    let s = WithMutableStateBounded { name: "item" };
+
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state_mut(&mut counter)),
+        "item#0"
+    );
+    assert_eq!(counter.count, 1);
+
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state_mut(&mut counter)),
+        "item#1"
+    );
+    assert_eq!(counter.count, 2);
+}
+
 // =============================================================================
-// Test: access mutable state in immutable context (should panic)
+// access mutable state in immutable context (should panic)
 // =============================================================================
 
 #[test]
 #[should_panic(expected = "StateRef: state is immutable")]
 fn test_immutable_context_mut_access_panics() {
-    fn bad_formatter(field: &str, f: &mut SyntaxFormatter<Counter>) -> std::fmt::Result {
-        f.state_mut().count += 1; // This should panic!
+    fn bad_formatter(field: &str, f: &mut SyntaxFormatter<TestCounter>) -> std::fmt::Result {
+        f.state_mut().post_inc(); // This should panic!
         write!(f, "{}", field)
     }
 
     #[derive(SyntaxFmtDerive)]
-    #[syntax(state = Counter)]
+    #[syntax(state = TestCounter)]
     struct Bad {
-        #[syntax(content = bad_formatter)]
+        #[syntax(cont = bad_formatter)]
         name: &'static str,
     }
 
-    let counter = Counter { count: 0 };
+    let counter = TestCounter { count: 0 };
     let s = Bad { name: "test" };
     let _ = format!("{}", syntax_fmt(&s).state(&counter));
 }
-
-*/

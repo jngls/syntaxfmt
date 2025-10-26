@@ -6,9 +6,6 @@ use syn::Expr;
 
 use crate::{components::{modal::{Strings, NUM_MODES}, parse_basic::ParseBasic}, SyntaxError};
 
-#[cfg(feature = "trace")]
-use crate::{trace, DEPTH};
-
 pub trait IntoSplitFormat: Sized {
     type Side;
 
@@ -17,7 +14,6 @@ pub trait IntoSplitFormat: Sized {
 
 impl IntoSplitFormat for String {
     type Side = Self;
-    #[cfg_attr(feature = "trace", trace)]
     fn into_split_format(self) -> (Self::Side, Self::Side, bool) {
         if let Some(pos) = self.find("{*}") {
             (self[..pos].into(), self[pos + 3..].into(), true)
@@ -32,7 +28,6 @@ impl IntoSplitFormat for String {
 impl IntoSplitFormat for Strings {
     type Side = Self;
 
-    #[cfg_attr(feature = "trace", trace)]
     fn into_split_format(mut self) -> (Self::Side, Self::Side, bool) {
         let mut split: [(String, String, bool); NUM_MODES] = from_fn(|i| take(&mut self[i]).into_split_format());
         let prefix = from_fn(|i| take(&mut split[i].0));
@@ -68,7 +63,6 @@ impl Format {
 pub struct WritePrefix<'a>(pub &'a Strings);
 
 impl<'a> ToTokens for WritePrefix<'a> {
-    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let prefix = self.0;
         tokens.extend(quote! { f.write_strs(#prefix); });
@@ -79,7 +73,6 @@ impl<'a> ToTokens for WritePrefix<'a> {
 pub struct WriteSuffix<'a>(pub &'a Strings);
 
 impl<'a> ToTokens for WriteSuffix<'a> {
-    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let suffix = self.0;
         tokens.extend(quote! { f.write_strs(#suffix); });

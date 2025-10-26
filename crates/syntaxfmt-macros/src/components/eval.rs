@@ -10,7 +10,6 @@ pub struct Eval(pub Expr);
 impl<'a> ParseBasic<'a> for Eval {
     type Input = Expr;
 
-    #[cfg_attr(feature = "trace", trace)]
     fn parse_basic(input: &'a Self::Input) -> Result<Self, SyntaxError> {
         Ok(match input.clone() {
             // Interpreted as items which result in bool
@@ -37,7 +36,6 @@ impl<'a> ParseBasic<'a> for Eval {
 }
 
 impl Eval {
-    #[cfg_attr(feature = "trace", trace)]
     pub fn to_tokens(&self, field: &impl ToTokens) -> TokenStream2 {
         match self {
             // Interpreted as items which result in bool

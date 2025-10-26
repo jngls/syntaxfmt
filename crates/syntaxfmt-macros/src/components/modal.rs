@@ -6,9 +6,6 @@ use syn::{Expr, ExprArray, ExprLit, Lit};
 
 use crate::{components::{parse_basic::ParseBasic}, SyntaxError};
 
-#[cfg(feature = "trace")]
-use crate::{trace, DEPTH};
-
 pub const NUM_MODES: usize = 2;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -31,7 +28,6 @@ impl IndexMut<usize> for Strings {
 impl<'a> ParseBasic<'a> for Strings {
     type Input = Expr;
 
-    #[cfg_attr(feature = "trace", trace)]
     fn parse_basic(expr: &Self::Input) -> Result<Self, SyntaxError> {
         match expr {
             Expr::Lit(ExprLit {
@@ -58,7 +54,6 @@ impl<'a> ParseBasic<'a> for Strings {
 }
 
 impl ToTokens for Strings {
-    #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let strs = &self.0;
         tokens.extend(quote! { [#(#strs),*] });

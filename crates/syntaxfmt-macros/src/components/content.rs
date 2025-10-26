@@ -10,9 +10,6 @@ use crate::{
     , SyntaxError
 };
 
-#[cfg(feature = "trace")]
-use crate::{trace, DEPTH};
-
 #[derive(Debug, Clone)]
 pub enum Content {
     Expr(Expr),
@@ -20,7 +17,6 @@ pub enum Content {
 }
 
 impl Content {
-    #[cfg_attr(feature = "trace", trace)]
     pub fn to_tokens(&self, field: &impl ToTokens) -> TokenStream2 {
         match self {
             // Interpreted as items which implement SyntaxFmt
@@ -58,7 +54,6 @@ impl Content {
 impl<'a> ParseBasic<'a> for Content {
     type Input = Expr;
 
-    #[cfg_attr(feature = "trace", trace)]
     fn parse_basic(input: &'a Self::Input) -> Result<Self, SyntaxError> {
         Ok(match input.clone() {
             // Interpreted as items which implement SyntaxFmt
