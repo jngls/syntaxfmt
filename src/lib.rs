@@ -291,7 +291,7 @@
 
 use core::panic;
 use std::cell::{Ref, RefCell, RefMut};
-use std::ffi::{OsStr, OsString};
+// use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
 
@@ -302,6 +302,7 @@ pub enum Mode {
     #[default]
     Normal = 0,
     Pretty = 1,
+    // When adding new modes, ensure they are not numerically inserted between existing modes
 }
 
 pub const NUM_MODES: usize = 2;
@@ -362,6 +363,7 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     f: &'f mut Formatter<'w>,
     state: &'sr RefCell<StateRef<'s, S>>,
     mode: Mode,
+    newline: Strs,
     single_indent: Strs,
     indent: Strings,
     delim_stack: Vec<Strs>,
@@ -370,11 +372,12 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, indent: Strs, mode: Mode) -> Self {
+    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, newline: Strs, indent: Strs, mode: Mode) -> Self {
         Self {
             f,
             state,
             mode,
+            newline,
             single_indent: indent,
             indent: Default::default(),
             delim_stack: Vec::new(),
@@ -428,10 +431,12 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         (0..NUM_MODES).for_each(|i| self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len()));
     }
     
-    /// Writes the current indentation to the output.
+    /// Writes newline and current indentation if in pretty mode.
     #[inline]
-    pub fn write_indent(&mut self) -> FmtResult {
-        write!(self.f, "{}", self.indent[self.imode()])
+    pub fn write_newline(&mut self) -> FmtResult {
+        let newline = self.newline[self.imode()];
+        let indent = self.indent[self.imode()].as_str();
+        write!(self.f, "{newline}{indent}")
     }
 
     /// Pushes a new delimiter pair onto the delimiter stack.
@@ -475,6 +480,7 @@ impl<'sr, 's, 'f, 'w, S> DerefMut for SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 pub struct SyntaxDisplay<'s, 'e, S, E> {
     state: RefCell<StateRef<'s, S>>,
     elem: &'e E,
+    newline: Strs,
     indent: Strs,
     mode: Mode,
 }
@@ -487,6 +493,7 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
         SyntaxDisplay {
             state: RefCell::new(StateRef::new_ref(state)),
             elem: self.elem,
+            newline: self.newline,
             indent: self.indent,
             mode: self.mode,
         }
@@ -499,6 +506,7 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
         SyntaxDisplay {
             state: RefCell::new(StateRef::new_mut(state)),
             elem: self.elem,
+            newline: self.newline,
             indent: self.indent,
             mode: self.mode,
         }
@@ -512,11 +520,19 @@ impl<'s, 'e, S, E> SyntaxDisplay<'s, 'e, S, E> {
         self
     }
 
-    /// Set the indentation string (default is four spaces).
+    /// Set the indentation string (default is "" for Normal mode and "    " for Pretty mode).
     #[must_use]
     #[inline]
     pub fn indent(mut self, indent: Strs) -> Self {
         self.indent = indent;
+        self
+    }
+
+    /// Set the newline strings (default is "" for Normal mode and "\n" for Pretty mode).
+    #[must_use]
+    #[inline]
+    pub fn newline(mut self, newline: Strs) -> Self {
+        self.newline = newline;
         self
     }
 }
@@ -526,7 +542,7 @@ where
     E: SyntaxFmt<S>,
 {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        let mut f = SyntaxFormatter::new(f, &self.state, self.indent, self.mode);
+        let mut f = SyntaxFormatter::new(f, &self.state, self.newline, self.indent, self.mode);
         self.elem.syntax_fmt(&mut f)
     }
 }
@@ -598,6 +614,7 @@ pub fn syntax_fmt<'e, E>(elem: &'e E) -> SyntaxDisplay<'static, 'e, (), E> {
         state: RefCell::new(StateRef::new_none(&UNIT_STATE)),
         elem,
         mode: Mode::Normal,
+        newline: ["", "\n"],
         indent: ["", "    "],
     }
 }
@@ -626,45 +643,36 @@ impl_syntax_fmt_display!(
     u8, u16, u32, u64, u128, usize,
     f32, f64,
     char, bool,
-    str, String // #TODO OsStr, OsString
+    str, String
 );
 
-impl<S, E> SyntaxFmt<S> for Option<E> where E: SyntaxFmt<S> {
+impl<S, T> SyntaxFmt<S> for Option<T> where T: SyntaxFmt<S> {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         match self {
-            Some(inner) => {
-                inner.syntax_fmt(f)
-            },
-            None => {
-                write!(f, "None")
-            },
+            Some(inner) => inner.syntax_fmt(f),
+            None => Ok(()),
         }
     }
 }
 
 // Implement SyntaxFmt for collections
-impl<S, E> SyntaxFmt<S> for Vec<E>
+impl<S, T> SyntaxFmt<S> for Vec<T>
 where
-    E: SyntaxFmt<S>,
+    T: SyntaxFmt<S>,
 {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         self.as_slice().syntax_fmt(f)
     }
 }
 
-impl<S, E> SyntaxFmt<S> for [E]
+impl<S, T> SyntaxFmt<S> for [T]
 where
-    E: SyntaxFmt<S>,
+    T: SyntaxFmt<S>,
 {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         for (i, elem) in self.iter().enumerate() {
             if i > 0 {
                 f.write_delim()?;
-            }
-            if f.mode() == Mode::Pretty {
-                // This might need some work
-                // maybe a write_newline function which deals with indentation?
-                f.write_indent()?;
             }
             elem.syntax_fmt(f)?;
         }
@@ -672,9 +680,9 @@ where
     }
 }
 
-impl<S, E, const N: usize> SyntaxFmt<S> for [E; N]
+impl<S, T, const N: usize> SyntaxFmt<S> for [T; N]
 where
-    E: SyntaxFmt<S>,
+    T: SyntaxFmt<S>,
 {
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         self.as_slice().syntax_fmt(f)

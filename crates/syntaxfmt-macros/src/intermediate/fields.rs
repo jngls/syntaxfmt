@@ -22,8 +22,12 @@ pub struct SyntaxFieldNamed {
 
 impl SyntaxFieldNamed {
     #[cfg_attr(feature = "trace", trace)]
-    pub fn decl(&self) -> &Ident {
-        &self.name
+    pub fn decl(&self) -> Ident {
+        if self.attrs.skip {
+            Ident::new("_", self.name.span())
+        } else {
+            self.name.clone()
+        }
     }
 }
 
@@ -34,12 +38,10 @@ impl<'a> ParseType<'a> for SyntaxFieldNamed {
     fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
         let ty = &input.ty;
         let attrs = Attributes::parse_for_field(&input.attrs)?;
-        let name = if attrs.skip {
-            Ident::new("_", input.ident.span())
-        } else {
+        let name = input.ident.clone().unwrap();
+        if !attrs.skip {
             types.push(ty);
-            input.ident.clone().unwrap()
-        };
+        }
         Ok(Self { attrs, name })
     }
 }
@@ -54,9 +56,9 @@ impl ToTokens for SyntaxFieldNamed {
         let span = self.name.span();
         let name = &self.name;
 
-        let insert = quote_spanned! { span => let field = #name; };
+        // let insert = quote_spanned! { span => let field = #name; };
         let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
-        let content = self.attrs.to_tokens(insert, default_content);
+        let content = self.attrs.to_tokens(name, default_content);
 
         tokens.extend(content);
     }
@@ -108,9 +110,9 @@ impl ToTokens for SyntaxFieldUnnamed {
         let span = self.name.span();
         let name = &self.name;
 
-        let insert = quote_spanned! { span => let field = #name; };
+        // let insert = quote_spanned! { span => let field = #name; };
         let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
-        let content = self.attrs.to_tokens(insert, default_content);
+        let content = self.attrs.to_tokens(name, default_content);
 
         tokens.extend(content);
     }
@@ -123,10 +125,12 @@ pub struct SyntaxFieldsNamed {
 
 impl SyntaxFieldsNamed {
     #[cfg_attr(feature = "trace", trace)]
-    pub fn decl(&self) -> Punctuated<&Ident, Comma> {
+    pub fn decl(&self) -> Punctuated<Ident, Comma> {
         let mut decls = Punctuated::new();
         for field in &self.fields {
-            decls.push(field.decl());
+            if !field.attrs.skip {
+                decls.push(field.decl());
+            }
         }
         decls
     }
@@ -164,10 +168,10 @@ pub struct SyntaxFieldsUnnamed {
 
 impl SyntaxFieldsUnnamed {
     #[cfg_attr(feature = "trace", trace)]
-    pub fn decl(&self) -> Punctuated<&Ident, Comma> {
+    pub fn decl(&self) -> Punctuated<Ident, Comma> {
         let mut decls = Punctuated::new();
         for field in &self.fields {
-            decls.push(field.decl());
+            decls.push(field.decl().clone());
         }
         decls
     }
@@ -200,19 +204,19 @@ impl ToTokens for SyntaxFieldsUnnamed {
 }
 
 #[derive(Debug, Clone)]
-pub enum SyntaxFieldsDecl<'a> {
-    Named(Punctuated<&'a Ident, Comma>),
-    Unnamed(Punctuated<&'a Ident, Comma>),
+pub enum SyntaxFieldsDecl {
+    Named(Punctuated<Ident, Comma>),
+    Unnamed(Punctuated<Ident, Comma>),
     Unit,
 }
 
-impl<'a> ToTokens for SyntaxFieldsDecl<'a> {
+impl ToTokens for SyntaxFieldsDecl {
     #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             SyntaxFieldsDecl::Named(inner) => {
                 let span = inner.span();
-                tokens.extend(quote_spanned! { span => { #inner } });
+                tokens.extend(quote_spanned! { span => { #inner, .. } });
             }
             SyntaxFieldsDecl::Unnamed(inner) => {
                 let span = inner.span();

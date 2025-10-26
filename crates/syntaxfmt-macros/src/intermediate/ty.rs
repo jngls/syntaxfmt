@@ -1,18 +1,16 @@
 use std::mem::take;
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
     Data, DeriveInput, Generics, Ident, Type, WhereClause, parse_quote_spanned,
     punctuated::Punctuated, spanned::Spanned, token::Where,
 };
 
 use crate::{
-    components::{attributes::Attributes, content::Content}, intermediate::{
-        fields::SyntaxFields,
-        parse_type::ParseType,
-        variants::SyntaxVariants,
-    }, SyntaxError
+    SyntaxError,
+    components::{attributes::Attributes, content::Content},
+    intermediate::{fields::SyntaxFields, parse_type::ParseType, variants::SyntaxVariants},
 };
 
 #[cfg(feature = "trace")]
@@ -77,7 +75,13 @@ pub struct SyntaxType<'a> {
 
 impl<'a> SyntaxType<'a> {
     #[cfg_attr(feature = "trace", trace)]
-    fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2) {
+    fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+        let state = self
+            .attrs
+            .state
+            .as_ref()
+            .map(|(_, s)| s.to_token_stream().clone())
+            .unwrap_or(quote! { __SyntaxFmtState });
         let mut impl_gen = self.generics.params.clone();
         let ty_gen = self.generics.params.clone();
         let mut where_clause = self.generics.where_clause.clone().unwrap_or(WhereClause {
@@ -86,24 +90,27 @@ impl<'a> SyntaxType<'a> {
         });
 
         let span = impl_gen.span();
-        impl_gen.push(parse_quote_spanned!(span => __SyntaxFmtState));
+        if self.attrs.state.is_none() {
+            impl_gen.push(parse_quote_spanned!(span => #state));
+        }
 
         if let Some((_, bound)) = &self.attrs.state_bound {
             let span = bound.span();
             where_clause
                 .predicates
-                .push(syn::parse_quote_spanned! {span => __SyntaxFmtState: #bound });
+                .push(syn::parse_quote_spanned! {span => #state: #bound });
         }
 
         for &field_ty in &self.types {
             let span = field_ty.span();
             where_clause
                 .predicates
-                .push(syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> });
+                .push(syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> });
         }
 
         let where_clause = (!where_clause.predicates.is_empty()).then_some(where_clause);
         (
+            state,
             impl_gen.to_token_stream(),
             ty_gen.to_token_stream(),
             where_clause.to_token_stream(),
@@ -132,22 +139,21 @@ impl<'a> ParseType<'a> for SyntaxType<'a> {
 impl<'a> ToTokens for SyntaxType<'a> {
     #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        if self.attrs.skip {
-            return;
-        }
-
         let name = self.name;
         let span = self.name.span();
 
-        let (impl_gen, ty_gen, where_clause) = self.split_generics();
+        let (state, impl_gen, ty_gen, where_clause) = self.split_generics();
 
-        let insert = quote! { let field = self; };
-        let default_content = Content::Tokens(self.kind.to_token_stream());
-        let content = self.attrs.to_tokens(insert, default_content);
+        let content = if self.attrs.skip {
+            TokenStream2::new()
+        } else {
+            let default_content = Content::Tokens(self.kind.to_token_stream());
+            self.attrs.to_tokens(&quote! { self }, default_content)
+        };
 
         tokens.extend(quote_spanned! { span =>
-            impl <#impl_gen> ::syntaxfmt::SyntaxFmt<__SyntaxFmtState> for #name<#ty_gen> #where_clause {
-                fn syntax_fmt(&self, f: &mut ::syntaxfmt::SyntaxFormatter<__SyntaxFmtState>) -> ::std::fmt::Result {
+            impl <#impl_gen> ::syntaxfmt::SyntaxFmt<#state> for #name<#ty_gen> #where_clause {
+                fn syntax_fmt(&self, f: &mut ::syntaxfmt::SyntaxFormatter<#state>) -> ::std::fmt::Result {
                     #content
                     Ok(())
                 }

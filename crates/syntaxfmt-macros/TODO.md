@@ -5,6 +5,10 @@
 - [x] Change all explicit names for `ident` back in `parse_basic`
 - [x] Conditionals
 - [x] Else content
+- [x] Invert logic and simplify eval and content matches
+- [x] Explicit newline args and newline() api in SyntaxFormatter
+- [ ] syntax_else
+- [ ] Support OsString, OsStr, CString, CStr
 - [ ] Convert everything to references
 - [ ] Refactor tests
 - [ ] Update docs

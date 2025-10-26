@@ -2,7 +2,7 @@ use std::{array::from_fn, ops::{Index, IndexMut}};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
-use syn::{Expr, ExprLit, ExprTuple, Lit};
+use syn::{Expr, ExprArray, ExprLit, Lit};
 
 use crate::{components::{parse_basic::ParseBasic}, SyntaxError};
 
@@ -40,7 +40,7 @@ impl<'a> ParseBasic<'a> for Strings {
                 let s = s.value();
                 Ok(Self(from_fn(|_| s.clone())))
             }
-            Expr::Tuple(ExprTuple { elems, .. }) => {
+            Expr::Array(ExprArray { elems, .. })=> {
                 let mut strs = Strings::default();
                 let mut i = 0;
                 for (s, e) in strs.0.iter_mut().zip(elems) {

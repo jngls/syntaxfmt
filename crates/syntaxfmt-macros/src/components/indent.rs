@@ -25,11 +25,11 @@ impl ToTokens for PopIndentRegion {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct WriteIndent;
+pub struct WriteNewline;
 
-impl ToTokens for WriteIndent {
+impl ToTokens for WriteNewline {
     #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        tokens.extend(quote! { f.write_indent()?; });
+        tokens.extend(quote! { f.write_newline()?; });
     }
 }

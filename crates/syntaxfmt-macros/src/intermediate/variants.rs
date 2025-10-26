@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote_spanned, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{punctuated::Punctuated, token::Comma, Ident, Type, Variant};
 
 use crate::{components::{attributes::Attributes, content::Content}, intermediate::{fields::{SyntaxFields, SyntaxFieldsDecl}, parse_type::ParseType}, SyntaxError};
@@ -8,14 +8,14 @@ use crate::{components::{attributes::Attributes, content::Content}, intermediate
 use crate::{trace, DEPTH};
 
 #[derive(Debug, Clone)]
-pub struct SyntaxVariantDecl<'a>(&'a Ident, SyntaxFieldsDecl<'a>);
+pub struct SyntaxVariantDecl(Ident, SyntaxFieldsDecl);
 
-impl<'a> ToTokens for SyntaxVariantDecl<'a> {
+impl ToTokens for SyntaxVariantDecl {
     #[cfg_attr(feature = "trace", trace)]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let span = self.0.span();
 
-        let name = self.0;
+        let name = &self.0;
         let fields_decl = &self.1;
 
         tokens.extend(quote_spanned! { span => Self::#name #fields_decl });
@@ -32,7 +32,7 @@ pub struct SyntaxVariant {
 impl SyntaxVariant {
     #[cfg_attr(feature = "trace", trace)]
     pub fn decl(&self) -> SyntaxVariantDecl {
-        SyntaxVariantDecl(&self.name, self.fields.decl())
+        SyntaxVariantDecl(self.name.clone(), self.fields.decl())
     }
 }
 
@@ -62,9 +62,9 @@ impl ToTokens for SyntaxVariant {
         let span = self.name.span();
         let decl = self.decl();
 
-        let insert = quote_spanned! { span => let field = self; };
+        // let insert = quote_spanned! { span => let field = self; };
         let default_content = Content::Tokens(self.fields.to_token_stream());
-        let content = self.attrs.to_tokens(insert, default_content);
+        let content = self.attrs.to_tokens(&quote! { self }, default_content);
 
         tokens.extend(quote_spanned! { span => #decl => { #content }});
     }
