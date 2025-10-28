@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{DeriveInput, Error as SynError, Result as SynResult, parse_macro_input};
 
-use crate::intermediate::{parse_type::ParseType, ty::SyntaxType};
+use crate::intermediate::ty::SyntaxType;
 
 mod attributes;
 mod intermediate;
@@ -17,7 +17,7 @@ fn syn_err<T: ToTokens, U: Display, R>(tokens: T, message: U) -> SynResult<R> {
 pub fn derive_syntax_fmt(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let ty = match SyntaxType::parse_type(&mut Vec::new(), &input) {
+    let ty = match SyntaxType::from_derive_input(&mut Vec::new(), &input) {
         Ok(ty) => ty,
         Err(e) => return e.to_compile_error().into(),
     };

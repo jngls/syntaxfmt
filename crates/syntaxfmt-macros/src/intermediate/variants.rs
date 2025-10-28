@@ -7,10 +7,7 @@ use crate::{
         args::FieldArgs,
         content::{Content, Skipped, ToConditionalTokens},
     },
-    intermediate::{
-        fields::{SyntaxFields, SyntaxFieldsDecl},
-        parse_type::ParseType,
-    },
+    intermediate::fields::{SyntaxFields, SyntaxFieldsDecl},
 };
 
 #[derive(Debug, Clone)]
@@ -35,19 +32,15 @@ pub struct SyntaxVariant {
 }
 
 impl SyntaxVariant {
-    pub fn decl(&self) -> SyntaxVariantDecl {
-        SyntaxVariantDecl(self.name.clone(), self.fields.decl())
-    }
-}
-
-impl<'a> ParseType<'a> for SyntaxVariant {
-    type Input = Variant;
-
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+    pub fn from_variant<'a>(types: &mut Vec<&'a Type>, input: &'a Variant) -> SynResult<Self> {
         let args = FieldArgs::from_attributes(&input.attrs)?;
-        let fields = SyntaxFields::parse_type(types, &input.fields)?;
+        let fields = SyntaxFields::from_fields(types, &input.fields)?;
         let name = input.ident.clone();
         Ok(Self { args, fields, name })
+    }
+
+    pub fn decl(&self) -> SyntaxVariantDecl {
+        SyntaxVariantDecl(self.name.clone(), self.fields.decl())
     }
 }
 
@@ -75,13 +68,14 @@ pub struct SyntaxVariants {
     pub variants: Vec<SyntaxVariant>,
 }
 
-impl<'a> ParseType<'a> for SyntaxVariants {
-    type Input = Punctuated<Variant, Comma>;
-
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+impl SyntaxVariants {
+    pub fn from_variants<'a>(
+        types: &mut Vec<&'a Type>,
+        input: &'a Punctuated<Variant, Comma>,
+    ) -> SynResult<Self> {
         let mut variants = Vec::new();
         for variant in input {
-            variants.push(SyntaxVariant::parse_type(types, variant)?);
+            variants.push(SyntaxVariant::from_variant(types, variant)?);
         }
         Ok(Self { variants })
     }

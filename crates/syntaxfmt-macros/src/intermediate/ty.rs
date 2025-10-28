@@ -3,9 +3,8 @@ use std::mem::take;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam,
-    Result as SynResult, Type, WhereClause, parse_quote_spanned, punctuated::Punctuated,
-    spanned::Spanned, token::Where,
+    Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult, Type,
+    WhereClause, parse_quote_spanned, punctuated::Punctuated, spanned::Spanned, token::Where,
 };
 
 use crate::{
@@ -13,7 +12,7 @@ use crate::{
         args::TypeArgs,
         content::{Content, Skipped, ToConditionalTokens},
     },
-    intermediate::{fields::SyntaxFields, parse_type::ParseType, variants::SyntaxVariants},
+    intermediate::{fields::SyntaxFields, variants::SyntaxVariants},
     syn_err,
 };
 
@@ -23,16 +22,14 @@ pub enum SyntaxTypeKind {
     Enum(SyntaxVariants),
 }
 
-impl<'a> ParseType<'a> for SyntaxTypeKind {
-    type Input = Data;
-
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+impl SyntaxTypeKind {
+    pub fn from_data<'a>(types: &mut Vec<&'a Type>, input: &'a Data) -> SynResult<Self> {
         match input {
-            Data::Struct(data_struct) => Ok(Self::Struct(SyntaxFields::parse_type(
+            Data::Struct(data_struct) => Ok(Self::Struct(SyntaxFields::from_fields(
                 types,
                 &data_struct.fields,
             )?)),
-            Data::Enum(data_enum) => Ok(Self::Enum(SyntaxVariants::parse_type(
+            Data::Enum(data_enum) => Ok(Self::Enum(SyntaxVariants::from_variants(
                 types,
                 &data_enum.variants,
             )?)),
@@ -77,6 +74,19 @@ pub struct SyntaxType<'a> {
 }
 
 impl<'a> SyntaxType<'a> {
+    pub fn from_derive_input(types: &mut Vec<&'a Type>, input: &'a DeriveInput) -> SynResult<Self> {
+        let args = TypeArgs::from_attributes(&input.attrs)?;
+        let kind = SyntaxTypeKind::from_data(types, &input.data)?;
+
+        Ok(Self {
+            args,
+            types: take(types),
+            kind,
+            generics: &input.generics,
+            name: &input.ident,
+        })
+    }
+
     fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
         let state = self
             .args
@@ -125,23 +135,6 @@ impl<'a> SyntaxType<'a> {
             ty_gen.to_token_stream(),
             where_clause.to_token_stream(),
         )
-    }
-}
-
-impl<'a> ParseType<'a> for SyntaxType<'a> {
-    type Input = DeriveInput;
-
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
-        let args = TypeArgs::from_attributes(&input.attrs)?;
-        let kind = SyntaxTypeKind::parse_type(types, &input.data)?;
-
-        Ok(Self {
-            args,
-            types: take(types),
-            kind,
-            generics: &input.generics,
-            name: &input.ident,
-        })
     }
 }
 
