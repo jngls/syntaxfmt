@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{
-    Error as SynError, Expr, ExprClosure, Lifetime, Result as SynResult, TypePath, TypeTraitObject, punctuated::Punctuated, token::Comma
-};
+use quote::{ToTokens, quote};
+use syn::{Expr, ExprClosure, Result as SynResult, TypePath};
 
-use crate::attributes::{args::CommonArgs, delims::PopDelims, eval::Eval, pretty::PopIndentRegion};
+use crate::{
+    attributes::{args::CommonArgs, delims::PopDelims, eval::Eval, pretty::PopIndentRegion},
+    syn_err,
+};
 
 pub trait Skipped {
     fn skipped(&self) -> bool;
@@ -21,11 +22,6 @@ pub trait WithEval {
     fn eval(&self) -> &Option<Eval>;
 }
 
-pub trait WithState {
-    fn state(&self) -> (&Option<TypePath>, &Option<TypeTraitObject>);
-    fn lifetimes(&self) -> &Vec<Lifetime>;
-}
-
 pub trait WithConditional {
     type Normal: WithCommon + WithEval;
     type Else: WithCommon;
@@ -37,7 +33,10 @@ pub trait ToContentTokens {
     fn to_content_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2;
 }
 
-impl<T> ToContentTokens for T where T: WithCommon {
+impl<T> ToContentTokens for T
+where
+    T: WithCommon,
+{
     fn to_content_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2 {
         let common = self.common();
 
@@ -77,15 +76,30 @@ impl<T> ToContentTokens for T where T: WithCommon {
 }
 
 pub trait ToConditionalTokens {
-    fn to_conditional_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2;
+    fn to_conditional_tokens(
+        &self,
+        field: &impl ToTokens,
+        default_content: &Content,
+    ) -> TokenStream2;
 }
 
-impl<T, N, E> ToConditionalTokens for T where T: WithConditional<Normal = N, Else = E>, N: ToContentTokens + WithEval, E: ToContentTokens {
-    fn to_conditional_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2 {
+impl<T, N, E> ToConditionalTokens for T
+where
+    T: WithConditional<Normal = N, Else = E>,
+    N: ToContentTokens + WithEval,
+    E: ToContentTokens,
+{
+    fn to_conditional_tokens(
+        &self,
+        field: &impl ToTokens,
+        default_content: &Content,
+    ) -> TokenStream2 {
         let (args, args_else) = self.conditional();
 
         let content = args.to_content_tokens(field, default_content);
-        let content_else = args_else.as_ref().map(|a| a.to_content_tokens(field, default_content));
+        let content_else = args_else
+            .as_ref()
+            .map(|a| a.to_content_tokens(field, default_content));
 
         let eval = args.eval().as_ref().map(|e| e.to_tokens(field));
 
@@ -140,7 +154,9 @@ impl Content {
             // Interpreted as items which must be written directly as strings
             e @ Expr::Array(_) => Self::Expr(e),
 
-            e => return Err(SynError::new_spanned(e, "syntaxfmt unsupported content expression")),
+            e => {
+                return syn_err(e, "syntaxfmt unsupported content expression");
+            }
         }))
     }
 
@@ -179,13 +195,8 @@ impl Content {
             // Interpreted as items which must be written directly as strings
             Self::Expr(Expr::Array(e)) => quote! { f.write_strs(#e)?; },
 
-            // Interpreted as items which must be called to perform formatting
-            // Self::Expr(Expr::Closure(e)) => quote! { (#e)(#field, f)?; },
-            // Self::Expr(Expr::Path(e)) => quote! { (#e)(#field, f)?; },
-
-            // Self::TypePath(t) => {
-            //     quote! { (#e)(#field, f)?; }
-            // }
+            Self::TypePath(p) => quote! { (#p)(#field, f)?; },
+            Self::Closure(p) => quote! { (#p)(#field, f)?; },
 
             Self::Tokens(t) => t.clone(),
 

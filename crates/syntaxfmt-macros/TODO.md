@@ -8,10 +8,12 @@
 - [x] Invert logic and simplify eval and content matches
 - [x] Explicit newline args and newline() api in SyntaxFormatter
 - [x] syntax_else
-- [ ] compile failure on empty struct
+- [x] compile failure on empty struct
+- [ ] Need to build a HashSet of each generic type (state and element both with same lifetime creates a conflict)
+- [ ] Clean up generics split in general
 - [ ] Support OsString, OsStr, CString, CStr
 - [ ] Convert everything to references
-- [ ] Refactor tests
+- [x] Refactor tests
 - [ ] Update docs
 - [ ] Merge
 - [ ] Publish

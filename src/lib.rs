@@ -69,7 +69,7 @@
 //! ## Basic struct formatting
 //!
 //! Note that syntax attribute may be used at the type level or at the field level.
-//! 
+//!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
@@ -374,7 +374,13 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[must_use]
     #[inline]
-    fn new(f: &'f mut Formatter<'w>, state: &'sr RefCell<StateRef<'s, S>>, newline: Strs, indent: Strs, mode: Mode) -> Self {
+    fn new(
+        f: &'f mut Formatter<'w>,
+        state: &'sr RefCell<StateRef<'s, S>>,
+        newline: Strs,
+        indent: Strs,
+        mode: Mode,
+    ) -> Self {
         Self {
             f,
             state,
@@ -417,14 +423,20 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     /// Takes a closure that receives this formatter and immutable access to state and returns a value of its choice.
     #[must_use]
     #[inline]
-    pub fn map_state<F, R>(&mut self, map: F) -> R where F: FnOnce(&mut Self, &S) -> R {
+    pub fn map_state<F, R>(&mut self, map: F) -> R
+    where
+        F: FnOnce(&mut Self, &S) -> R,
+    {
         map(self, self.state.borrow().as_ref())
     }
 
     /// Takes a closure that receives this formatter and mutable access to state and returns a value of its choice.
     #[must_use]
     #[inline]
-    pub fn map_state_mut<F, R>(&mut self, map: F) -> R where F: FnOnce(&mut Self, &mut S) -> R {
+    pub fn map_state_mut<F, R>(&mut self, map: F) -> R
+    where
+        F: FnOnce(&mut Self, &mut S) -> R,
+    {
         map(self, self.state.borrow_mut().as_mut())
     }
 
@@ -444,9 +456,11 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     /// Decreases the indentation level by one.
     #[inline]
     pub fn pop_indent(&mut self) {
-        (0..NUM_MODES).for_each(|i| self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len()));
+        (0..NUM_MODES).for_each(|i| {
+            self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len())
+        });
     }
-    
+
     /// Writes newline and current indentation if in pretty mode.
     #[inline]
     pub fn write_newline(&mut self) -> FmtResult {
@@ -655,14 +669,14 @@ macro_rules! impl_syntax_fmt_display {
 }
 
 impl_syntax_fmt_display!(
-    i8, i16, i32, i64, i128, isize,
-    u8, u16, u32, u64, u128, usize,
-    f32, f64,
-    char, bool,
-    str, String
+    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64, char, bool, str,
+    String
 );
 
-impl<S, T> SyntaxFmt<S> for Option<T> where T: SyntaxFmt<S> {
+impl<S, T> SyntaxFmt<S> for Option<T>
+where
+    T: SyntaxFmt<S>,
+{
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         match self {
             Some(inner) => inner.syntax_fmt(f),

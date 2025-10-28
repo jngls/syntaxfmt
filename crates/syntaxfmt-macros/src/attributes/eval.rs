@@ -1,9 +1,6 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{
-    Error as SynError, Expr, ExprClosure, Result as SynResult, TypePath
-
-};
+use quote::{ToTokens, quote};
+use syn::{Expr, ExprClosure, Result as SynResult, TypePath};
 
 use crate::syn_err;
 
@@ -61,7 +58,7 @@ impl Eval {
             Self::TypePath(p) => quote! { (#p)(#field) },
             Self::Closure(p) => quote! { (#p)(#field) },
 
-            _ => TokenStream2::new()
+            _ => TokenStream2::new(),
         }
     }
 }

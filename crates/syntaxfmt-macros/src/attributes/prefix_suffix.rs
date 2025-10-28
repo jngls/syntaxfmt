@@ -1,8 +1,6 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
-use syn::{
-    Error as SynError, Expr, LitStr, Result as SynResult, punctuated::Punctuated, token::Comma,
-};
+use syn::{LitStr, Result as SynResult, punctuated::Punctuated, token::Comma};
 
 use crate::attributes::modal::Strings;
 

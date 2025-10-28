@@ -3,12 +3,18 @@ use std::mem::take;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    Data, DeriveInput, Error as SynError, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult, Type, WhereClause, parse_quote_spanned, punctuated::Punctuated, spanned::Spanned, token::Where
+    Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam,
+    Result as SynResult, Type, WhereClause, parse_quote_spanned, punctuated::Punctuated,
+    spanned::Spanned, token::Where,
 };
 
 use crate::{
-    attributes::{args::TypeArgs, content::{Content, Skipped, ToConditionalTokens}},
+    attributes::{
+        args::TypeArgs,
+        content::{Content, Skipped, ToConditionalTokens},
+    },
     intermediate::{fields::SyntaxFields, parse_type::ParseType, variants::SyntaxVariants},
+    syn_err,
 };
 
 #[derive(Debug, Clone)]
@@ -30,7 +36,10 @@ impl<'a> ParseType<'a> for SyntaxTypeKind {
                 types,
                 &data_enum.variants,
             )?)),
-            Data::Union(data_union) => Err(SynError::new_spanned(data_union.union_token, "syntaxfmt cannot be derived for unions")),
+            Data::Union(data_union) => syn_err(
+                data_union.union_token,
+                "syntaxfmt cannot be derived for unions",
+            ),
         }
     }
 }
@@ -70,7 +79,10 @@ pub struct SyntaxType<'a> {
 impl<'a> SyntaxType<'a> {
     fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
         let state = self
-            .args.args.state.as_ref()
+            .args
+            .args
+            .state
+            .as_ref()
             .map(|path| path.to_token_stream().clone())
             .unwrap_or(quote! { __SyntaxFmtState });
 
@@ -83,7 +95,11 @@ impl<'a> SyntaxType<'a> {
 
         let span = impl_gen.span();
         let lifetimes = &self.args.lifetimes;
-        impl_gen.extend(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam::new(lt.clone()))));
+        impl_gen.extend(
+            lifetimes
+                .iter()
+                .map(|lt| GenericParam::Lifetime(LifetimeParam::new(lt.clone()))),
+        );
         if self.args.args.state.is_none() {
             impl_gen.push(parse_quote_spanned!(span => #state ));
         }
@@ -97,9 +113,9 @@ impl<'a> SyntaxType<'a> {
 
         for &field_ty in &self.types {
             let span = field_ty.span();
-            where_clause
-                .predicates
-                .push(syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> });
+            where_clause.predicates.push(
+                syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> },
+            );
         }
 
         let where_clause = (!where_clause.predicates.is_empty()).then_some(where_clause);
@@ -139,7 +155,8 @@ impl<'a> ToTokens for SyntaxType<'a> {
         let default_content = Content::Tokens(self.kind.to_token_stream());
 
         let content = if !self.args.skipped() {
-            self.args.to_conditional_tokens(&quote! { self }, &default_content)
+            self.args
+                .to_conditional_tokens(&quote! { self }, &default_content)
         } else {
             TokenStream2::new()
         };

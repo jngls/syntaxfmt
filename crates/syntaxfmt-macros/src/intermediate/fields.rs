@@ -1,17 +1,16 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote_spanned};
 use syn::{
-    Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Type, punctuated::Punctuated,
-    spanned::Spanned, token::Comma,
-        Result as SynResult,
-    Error as SynError,
-
+    Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Result as SynResult, Type,
+    punctuated::Punctuated, spanned::Spanned, token::Comma,
 };
 
 use crate::{
     attributes::{
-        args::FieldArgs, content::{Content, Skipped, ToConditionalTokens}
-    }, intermediate::parse_type::ParseType
+        args::FieldArgs,
+        content::{Content, Skipped, ToConditionalTokens},
+    },
+    intermediate::parse_type::ParseType,
 };
 
 #[derive(Debug, Clone)]
@@ -131,10 +130,7 @@ impl SyntaxFieldsNamed {
 impl<'a> ParseType<'a> for SyntaxFieldsNamed {
     type Input = FieldsNamed;
 
-    fn parse_type(
-        types: &mut Vec<&'a Type>,
-        input: &'a Self::Input,
-    ) -> SynResult<Self> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         let mut fields = Vec::new();
         for field in &input.named {
             fields.push(SyntaxFieldNamed::parse_type(types, field)?);
@@ -169,10 +165,7 @@ impl SyntaxFieldsUnnamed {
 impl<'a> ParseType<'a> for SyntaxFieldsUnnamed {
     type Input = FieldsUnnamed;
 
-    fn parse_type(
-        types: &mut Vec<&'a Type>,
-        input: &'a Self::Input,
-    ) -> SynResult<Self> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         let mut fields = Vec::new();
         for (i, field) in input.unnamed.iter().enumerate() {
             let index = Ident::new(&format!("__{i}"), field.span());

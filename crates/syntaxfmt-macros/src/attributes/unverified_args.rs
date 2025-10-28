@@ -1,6 +1,12 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::ToTokens;
-use syn::{Attribute, Expr, ExprClosure, Ident, LitStr, Result as SynResult, TypePath, TypeTraitObject, bracketed, parse::{Parse, ParseStream}, punctuated::Punctuated, token::{Comma, Eq as SynEq, Or as SynOr}};
+use syn::{
+    Attribute, Expr, ExprClosure, Ident, LitStr, Result as SynResult, TypePath, TypeTraitObject,
+    bracketed,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    token::{Comma, Eq as SynEq, Or as SynOr},
+};
 
 use crate::syn_err;
 
@@ -80,7 +86,9 @@ impl UnverifiedArgs {
         }
     }
 
-    pub fn collect_args<'a>(input: &'a [Attribute]) -> SynResult<(UnverifiedArgs, Option<UnverifiedArgs>)> {
+    pub fn collect_args<'a>(
+        input: &'a [Attribute],
+    ) -> SynResult<(UnverifiedArgs, Option<UnverifiedArgs>)> {
         let mut args = Vec::new();
         let mut args_else = Vec::new();
         let mut last_attr = None;

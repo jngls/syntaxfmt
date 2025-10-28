@@ -2,8 +2,8 @@
 
 use std::marker::PhantomData;
 
+use syntaxfmt::{Mode, SyntaxFmt, SyntaxFormatter, syntax_fmt};
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
-use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
 
 // =============================================================================
 // empty structs
@@ -17,11 +17,11 @@ fn test_unit() {
 }
 
 #[derive(SyntaxFmtDerive)]
-struct EmptyNamed { }
+struct EmptyNamed {}
 
 #[test]
 fn test_empty_named() {
-    assert_eq!(format!("{}", syntax_fmt(&EmptyNamed { })), "");
+    assert_eq!(format!("{}", syntax_fmt(&EmptyNamed {})), "");
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -45,7 +45,10 @@ struct WithSkip {
 
 #[test]
 fn test_skip() {
-    let s = WithSkip { visible: "visible", invisible: "invisible" };
+    let s = WithSkip {
+        visible: "visible",
+        invisible: "invisible",
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "visible");
 }
 
@@ -73,7 +76,9 @@ struct WithOuterSkip {
 
 #[test]
 fn test_outer_skip() {
-    let s = WithOuterSkip { invisible: "invisible" };
+    let s = WithOuterSkip {
+        invisible: "invisible",
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "");
 }
 
@@ -91,9 +96,16 @@ struct WithIndent {
 
 #[test]
 fn test_indent_pretty() {
-    let s = WithIndent { header: "indent {", body: "foo", footer: "}" };
+    let s = WithIndent {
+        header: "indent {",
+        body: "foo",
+        footer: "}",
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "indent {foo}");
-    assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "indent {\n    foo\n}");
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).pretty()),
+        "indent {\n    foo\n}"
+    );
     //                                                          ^        ^
     //                                                         pre      cont
 }
@@ -116,12 +128,15 @@ fn test_nested_indent_pretty() {
         body: WithIndent {
             header: "inner {",
             body: "foo",
-            footer: "}"
+            footer: "}",
         },
         footer: "}",
     };
     assert_eq!(format!("{}", syntax_fmt(&s)), "outer {inner {foo}}");
-    assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "outer {\n    inner {\n        foo\n    }\n}");
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).pretty()),
+        "outer {\n    inner {\n        foo\n    }\n}"
+    );
     //                                                         ^            ^            ^      ^
     //                                                 outer: beg           |            |     cont
     //                                                 inner:              beg          cont
@@ -258,7 +273,10 @@ fn test_content_closure_as_formatter() {
     assert_eq!(format!("{}", syntax_fmt(&s)), "closure[value]");
 }
 
-fn my_struct_formatter<S>(_struct: &WithOuterContentPath, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+fn my_struct_formatter<S>(
+    _struct: &WithOuterContentPath,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
     write!(f, "formatted[{}]", _struct.field)
 }
 
@@ -330,7 +348,9 @@ struct WithDefaultDelim {
 
 #[test]
 fn test_default_delim() {
-    let s = WithDefaultDelim { items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")] };
+    let s = WithDefaultDelim {
+        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a,b,c");
 }
 
@@ -342,7 +362,9 @@ struct WithDelim {
 
 #[test]
 fn test_delim() {
-    let s = WithDelim { items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")] };
+    let s = WithDelim {
+        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a|b|c");
 }
 
@@ -354,7 +376,9 @@ struct WithModalDelim {
 
 #[test]
 fn test_modal_delim() {
-    let s = WithModalDelim { items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")] };
+    let s = WithModalDelim {
+        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a:b:c");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "a: b: c");
 }
@@ -367,7 +391,9 @@ struct WithOuterDelim {
 
 #[test]
 fn test_outer_delim() {
-    let s = WithOuterDelim { items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")] };
+    let s = WithOuterDelim {
+        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+    };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a|b|c");
 }
 
@@ -403,10 +429,14 @@ struct WithEvalMember {
 
 #[test]
 fn test_eval_member() {
-    let enabled = WithEvalMember { maybe_keyword: MaybeKeyword { value: "self" } };
+    let enabled = WithEvalMember {
+        maybe_keyword: MaybeKeyword { value: "self" },
+    };
     assert_eq!(format!("{}", syntax_fmt(&enabled)), "self");
 
-    let disabled = WithEvalMember { maybe_keyword: MaybeKeyword { value: "other" } };
+    let disabled = WithEvalMember {
+        maybe_keyword: MaybeKeyword { value: "other" },
+    };
     assert_eq!(format!("{}", syntax_fmt(&disabled)), "");
 }
 
@@ -441,7 +471,9 @@ struct WithEvalPath {
 
 #[test]
 fn test_eval_path() {
-    let long = WithEvalPath { text: "verylongtext" };
+    let long = WithEvalPath {
+        text: "verylongtext",
+    };
     assert_eq!(format!("{}", syntax_fmt(&long)), "verylongtext");
 
     let short = WithEvalPath { text: "short" };
@@ -475,7 +507,9 @@ struct WithOuterEvalPath {
 
 #[test]
 fn test_outer_eval_path() {
-    let long = WithOuterEvalPath { text: "verylongtext" };
+    let long = WithOuterEvalPath {
+        text: "verylongtext",
+    };
     assert_eq!(format!("{}", syntax_fmt(&long)), "verylongtext");
 
     let short = WithOuterEvalPath { text: "short" };
@@ -510,7 +544,9 @@ struct WithElseContent {
 
 #[test]
 fn test_eval_else_content() {
-    let some = WithElseContent { value: Some("data") };
+    let some = WithElseContent {
+        value: Some("data"),
+    };
     assert_eq!(format!("{}", syntax_fmt(&some)), "data");
 
     let none = WithElseContent { value: None };
@@ -555,7 +591,10 @@ fn test_immutable_state() {
     );
 }
 
-fn resolve_formatter_bounded<S: Resolver>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+fn resolve_formatter_bounded<S: Resolver>(
+    field: &str,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
     let resolved = f.state().resolve(field);
     write!(f, "{}", resolved)
 }
@@ -623,7 +662,10 @@ fn test_mutable_state() {
     assert_eq!(counter.count, 2);
 }
 
-fn counting_formatter_bounded<S: Counter>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+fn counting_formatter_bounded<S: Counter>(
+    field: &str,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
     let count = f.state_mut().post_inc();
     write!(f, "{}#{}", field, count)
 }
@@ -653,17 +695,58 @@ fn test_mutable_state_bounded() {
     assert_eq!(counter.count, 2);
 }
 
+trait TraitLifetime<'a> {}
+
 struct StateLifetime<'a>(PhantomData<&'a i32>);
 
+impl<'a> TraitLifetime<'a> for StateLifetime<'a> {}
+
+fn dummy_formatter<'a>(
+    _: &WithStateLifetime,
+    f: &mut SyntaxFormatter<StateLifetime<'a>>,
+) -> std::fmt::Result {
+    write!(f, "state lifetime works")
+}
+
+fn dummy_formatter_bounded<'a, S: TraitLifetime<'a>>(
+    _: &WithBoundLifetime,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
+    write!(f, "bound lifetime works")
+}
+
 #[derive(SyntaxFmtDerive)]
-#[syntax(state = StateLifetime<'a>)]
-struct WithStateLifetime { }
+#[syntax(state = StateLifetime<'a>, cont_with = dummy_formatter)]
+struct WithStateLifetime {}
 
 #[test]
 fn test_lifetime_state() {
     let lifetime_state = StateLifetime(Default::default());
 
-    assert_eq!(format!("{}", syntax_fmt(&WithStateLifetime { })).state(&lifetime_state), "");
+    assert_eq!(
+        format!(
+            "{}",
+            syntax_fmt(&WithStateLifetime {}).state(&lifetime_state)
+        ),
+        "state lifetime works"
+    );
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = TraitLifetime<'a>, cont_with = dummy_formatter_bounded)]
+struct WithBoundLifetime {}
+
+#[test]
+fn test_lifetime_bound() {
+    let lifetime_state = StateLifetime(Default::default());
+
+    assert_eq!(
+        format!(
+            "{}",
+            syntax_fmt(&WithBoundLifetime {}).state(&lifetime_state)
+        ),
+        "bound lifetime works"
+    );
 }
 
 // =============================================================================
@@ -671,9 +754,7 @@ fn test_lifetime_state() {
 // =============================================================================
 
 fn map_state_formatter(field: &str, f: &mut SyntaxFormatter<TestCounter>) -> std::fmt::Result {
-    f.map_state(|f, state| {
-        write!(f, "{}#{}", field, state.count)
-    })
+    f.map_state(|f, state| write!(f, "{}#{}", field, state.count))
 }
 
 #[derive(SyntaxFmtDerive)]
@@ -688,15 +769,15 @@ fn test_map_state() {
     let counter = TestCounter { count: 42 };
     let s = WithMapState { name: "item" };
 
-    assert_eq!(
-        format!("{}", syntax_fmt(&s).state(&counter)),
-        "item#42"
-    );
+    assert_eq!(format!("{}", syntax_fmt(&s).state(&counter)), "item#42");
     // Counter should not be modified
     assert_eq!(counter.count, 42);
 }
 
-fn map_state_mut_formatter<S: Counter>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+fn map_state_mut_formatter<S: Counter>(
+    field: &str,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
     f.map_state_mut(|f, state| {
         let count = state.post_inc();
         write!(f, "{}#{}", field, count)

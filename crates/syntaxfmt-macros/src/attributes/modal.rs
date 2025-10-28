@@ -1,9 +1,10 @@
-use std::{array::from_fn, ops::{Index, IndexMut}};
+use std::ops::{Index, IndexMut};
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{punctuated::Punctuated, token::Comma, Error as SynError, Expr, ExprArray, ExprLit, Lit, LitStr, Result as SynResult
-};
+use quote::{ToTokens, quote};
+use syn::{LitStr, Result as SynResult, punctuated::Punctuated, token::Comma};
+
+use crate::syn_err;
 
 pub const NUM_MODES: usize = 2;
 
@@ -38,7 +39,12 @@ impl Strings {
                 i += 1;
             }
             if i != NUM_MODES {
-                return Err(SynError::new_spanned(litstrs, format!("syntaxfmt expected {NUM_MODES} string literals (one for each mode `normal`, `pretty`, etc.)")));
+                return syn_err(
+                    litstrs,
+                    format!(
+                        "syntaxfmt expected {NUM_MODES} string literals (one for each mode `normal`, `pretty`, etc.)"
+                    ),
+                );
             }
         }
         Ok(strs)

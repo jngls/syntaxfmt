@@ -1,19 +1,18 @@
-use std::{
-    collections::HashSet,
-    fmt::Debug,
-};
+use std::{collections::HashSet, fmt::Debug};
 
 use syn::{
-    Attribute, GenericArgument, Ident, Lifetime, PathArguments, Result as SynResult, TypeParamBound, TypePath, TypeTraitObject, punctuated::Punctuated, token::Comma
+    Attribute, GenericArgument, Ident, Lifetime, PathArguments, Result as SynResult,
+    TypeParamBound, TypePath, TypeTraitObject,
 };
 
 use crate::{
     attributes::{
-        content::{Content, Skipped, WithCommon, WithConditional, WithEval, WithState},
+        content::{Content, Skipped, WithCommon, WithConditional, WithEval},
         delims::PushDelims,
         eval::Eval,
         prefix_suffix::{Prefix, Suffix},
-        pretty::{Newlines, PushIndentRegion}, unverified_args::{UnverifiedArg, UnverifiedArgKind, UnverifiedArgs},
+        pretty::{Newlines, PushIndentRegion},
+        unverified_args::{UnverifiedArg, UnverifiedArgKind, UnverifiedArgs},
     },
     syn_err,
 };
@@ -29,7 +28,8 @@ pub trait TakeArgs: Sized {
             "cont_with" => "cont",
             "eval_with" => "eval",
             s => s,
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -67,7 +67,10 @@ impl TakeArgs for CommonArgs {
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_common) {
             if !visited.insert(Self::normalise_ident(&arg.ident)) {
-                return syn_err(&arg.ident, "syntaxfmt found duplicate or conflicting attribute argument");
+                return syn_err(
+                    &arg.ident,
+                    "syntaxfmt found duplicate or conflicting attribute argument",
+                );
             }
             match arg.kind {
                 Kind::Prefix(i) => self.prefix = Prefix::from_litstrs(i)?,
@@ -106,12 +109,7 @@ impl TypeArgsNormal {
         use UnverifiedArgKind::*;
         matches!(
             arg.kind,
-            Skip(_)
-                | Eval(_)
-                | EvalTypePath(_)
-                | EvalClosure(_)
-                | State(_)
-                | StateBound(_)
+            Skip(_) | Eval(_) | EvalTypePath(_) | EvalClosure(_) | State(_) | StateBound(_)
         )
     }
 }
@@ -142,7 +140,10 @@ impl TakeArgs for TypeArgsNormal {
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_args) {
             if !visited.insert(Self::normalise_ident(&arg.ident)) {
-                return syn_err(&arg.ident, "syntaxfmt found duplicate or conflicting attribute argument");
+                return syn_err(
+                    &arg.ident,
+                    "syntaxfmt found duplicate or conflicting attribute argument",
+                );
             }
             match arg.kind {
                 Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
@@ -207,10 +208,7 @@ impl FieldArgsNormal {
         use UnverifiedArgKind::*;
         matches!(
             arg.kind,
-            Skip(_)
-                | Eval(_)
-                | EvalTypePath(_)
-                | EvalClosure(_)
+            Skip(_) | Eval(_) | EvalTypePath(_) | EvalClosure(_)
         )
     }
 }
@@ -235,7 +233,10 @@ impl TakeArgs for FieldArgsNormal {
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_args) {
             if !visited.insert(Self::normalise_ident(&arg.ident)) {
-                return syn_err(&arg.ident, "syntaxfmt found duplicate or conflicting attribute argument");
+                return syn_err(
+                    &arg.ident,
+                    "syntaxfmt found duplicate or conflicting attribute argument",
+                );
             }
             match arg.kind {
                 Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
@@ -306,10 +307,19 @@ impl TypeArgs {
         type_args.args = type_args.args.take_args(&mut args, false)?;
         if let Some(mut args_else) = args_else {
             let have_eval = type_args.args.eval.is_some();
-            type_args.args_else = Some(TypeArgsElse::default().take_args(&mut args_else, have_eval)?);
+            type_args.args_else =
+                Some(TypeArgsElse::default().take_args(&mut args_else, have_eval)?);
         }
-        type_args.args.state.as_ref().inspect(|t| Self::type_path_lifetimes(&mut type_args.lifetimes, t));
-        type_args.args.state_bound.as_ref().inspect(|t| Self::trait_obj_lifetimes(&mut type_args.lifetimes, t));
+        type_args
+            .args
+            .state
+            .as_ref()
+            .inspect(|t| Self::type_path_lifetimes(&mut type_args.lifetimes, t));
+        type_args
+            .args
+            .state_bound
+            .as_ref()
+            .inspect(|t| Self::trait_obj_lifetimes(&mut type_args.lifetimes, t));
         Ok(type_args)
     }
 
@@ -359,16 +369,6 @@ impl WithConditional for TypeArgs {
     }
 }
 
-impl WithState for TypeArgs {
-    fn state(&self) -> (&Option<TypePath>, &Option<TypeTraitObject>) {
-        (&self.args.state, &self.args.state_bound)
-    }
-
-    fn lifetimes(&self) -> &Vec<Lifetime> {
-        &self.lifetimes
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct FieldArgs {
     pub args: FieldArgsNormal,
@@ -383,7 +383,8 @@ impl FieldArgs {
         field_args.args = field_args.args.take_args(&mut args, false)?;
         if let Some(mut args_else) = args_else {
             let have_eval = field_args.args.eval.is_some();
-            field_args.args_else = Some(FieldArgsElse::default().take_args(&mut args_else, have_eval)?);
+            field_args.args_else =
+                Some(FieldArgsElse::default().take_args(&mut args_else, have_eval)?);
         }
         Ok(field_args)
     }

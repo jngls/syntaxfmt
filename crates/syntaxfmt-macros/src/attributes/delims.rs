@@ -1,9 +1,8 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{punctuated::Punctuated, token::Comma, Error as SynError, Expr, LitStr, Result as SynResult
-};
+use quote::{ToTokens, quote};
+use syn::{LitStr, Result as SynResult, punctuated::Punctuated, token::Comma};
 
-use crate::{attributes::{modal::Strings}};
+use crate::attributes::modal::Strings;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PushDelims(pub Strings);

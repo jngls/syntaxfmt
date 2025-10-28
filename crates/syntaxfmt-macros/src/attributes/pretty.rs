@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{punctuated::Punctuated, token::Comma, Ident, Result as SynResult};
+use quote::{ToTokens, quote};
+use syn::{Ident, Result as SynResult, punctuated::Punctuated, token::Comma};
 
 use crate::syn_err;
 
@@ -17,7 +17,7 @@ impl Newlines {
     pub fn from_idents(idents: Punctuated<Ident, Comma>) -> SynResult<Self> {
         let mut _self = Self::default();
         for ident in idents {
-            let mut nl = Self::default();
+            let nl;
             if ident == "beg" {
                 nl = Self::BEG;
             } else if ident == "pre" {
