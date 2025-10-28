@@ -1,8 +1,10 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{punctuated::Punctuated, token::Comma, Ident, Type, Variant};
+use syn::{punctuated::Punctuated, token::Comma, Ident, Type, Variant,     Result as SynResult,
+    Error as SynError,
+};
 
-use crate::{components::{attributes::Attributes, content::Content}, intermediate::{fields::{SyntaxFields, SyntaxFieldsDecl}, parse_type::ParseType}, SyntaxError};
+use crate::{attributes::{args::FieldArgs, content::{Content, Skipped, ToConditionalTokens}}, intermediate::{fields::{SyntaxFields, SyntaxFieldsDecl}, parse_type::ParseType}};
 
 #[derive(Debug, Clone)]
 pub struct SyntaxVariantDecl(Ident, SyntaxFieldsDecl);
@@ -20,8 +22,7 @@ impl ToTokens for SyntaxVariantDecl {
 
 #[derive(Debug, Clone)]
 pub struct SyntaxVariant {
-    pub attrs: Attributes,
-    pub attrs_else: Option<Attributes>,
+    pub args: FieldArgs,
     pub fields: SyntaxFields,
     pub name: Ident,
 }
@@ -35,14 +36,12 @@ impl SyntaxVariant {
 impl<'a> ParseType<'a> for SyntaxVariant {
     type Input = Variant;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
-        let attrs = Attributes::parse_for_field(&input.attrs)?;
-        let attrs_else = Attributes::parse_for_field_else(&input.attrs)?;
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+        let args = FieldArgs::from_attributes(&input.attrs)?;
         let fields = SyntaxFields::parse_type(types, &input.fields)?;
         let name = input.ident.clone();
         Ok(Self {
-            attrs,
-            attrs_else,
+            args,
             fields,
             name,
         })
@@ -51,7 +50,7 @@ impl<'a> ParseType<'a> for SyntaxVariant {
 
 impl ToTokens for SyntaxVariant {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        if self.attrs.skip.is_some() {
+        if self.args.skipped() {
             return;
         }
 
@@ -60,7 +59,7 @@ impl ToTokens for SyntaxVariant {
 
         let default_content = Content::Tokens(self.fields.to_token_stream());
 
-        let content = Attributes::to_conditional_tokens(&self.attrs, &self.attrs_else, &quote! { self }, &default_content);
+        let content = self.args.to_conditional_tokens(&quote! { self }, &default_content);
 
         tokens.extend(quote_spanned! { span => #decl => { #content }});
     }
@@ -74,7 +73,7 @@ pub struct SyntaxVariants {
 impl<'a> ParseType<'a> for SyntaxVariants {
     type Input = Punctuated<Variant, Comma>;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         let mut variants = Vec::new();
         for variant in input {
             variants.push(SyntaxVariant::parse_type(types, variant)?);

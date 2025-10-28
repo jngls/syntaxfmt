@@ -3,24 +3,26 @@ use quote::{ToTokens, quote_spanned};
 use syn::{
     Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Type, punctuated::Punctuated,
     spanned::Spanned, token::Comma,
+        Result as SynResult,
+    Error as SynError,
+
 };
 
 use crate::{
-    components::{
-        attributes::Attributes, content::Content
-    }, intermediate::parse_type::ParseType, SyntaxError
+    attributes::{
+        args::FieldArgs, content::{Content, Skipped, ToConditionalTokens}
+    }, intermediate::parse_type::ParseType
 };
 
 #[derive(Debug, Clone)]
 pub struct SyntaxFieldNamed {
-    pub attrs: Attributes,
-    pub attrs_else: Option<Attributes>,
+    pub args: FieldArgs,
     pub name: Ident,
 }
 
 impl SyntaxFieldNamed {
     pub fn decl(&self) -> Ident {
-        if self.attrs.skip.is_some() {
+        if self.args.skipped() {
             Ident::new("_", self.name.span())
         } else {
             self.name.clone()
@@ -31,21 +33,20 @@ impl SyntaxFieldNamed {
 impl<'a> ParseType<'a> for SyntaxFieldNamed {
     type Input = Field;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         let ty = &input.ty;
-        let attrs = Attributes::parse_for_field(&input.attrs)?;
-        let attrs_else = Attributes::parse_for_field_else(&input.attrs)?;
+        let args = FieldArgs::from_attributes(&input.attrs)?;
         let name = input.ident.clone().unwrap();
-        if attrs.skip.is_none() {
+        if !args.skipped() {
             types.push(ty);
         }
-        Ok(Self { attrs, attrs_else, name })
+        Ok(Self { args, name })
     }
 }
 
 impl ToTokens for SyntaxFieldNamed {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        if self.attrs.skip.is_some() {
+        if self.args.skipped() {
             return;
         }
 
@@ -54,7 +55,7 @@ impl ToTokens for SyntaxFieldNamed {
 
         let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
 
-        let content = Attributes::to_conditional_tokens(&self.attrs, &self.attrs_else, name, &default_content);
+        let content = self.args.to_conditional_tokens(name, &default_content);
 
         tokens.extend(content);
     }
@@ -62,8 +63,7 @@ impl ToTokens for SyntaxFieldNamed {
 
 #[derive(Debug, Clone)]
 pub struct SyntaxFieldUnnamed {
-    pub attrs: Attributes,
-    pub attrs_else: Option<Attributes>,
+    pub args: FieldArgs,
     pub name: Ident,
 }
 
@@ -81,16 +81,14 @@ impl SyntaxFieldUnnamed {
 impl<'a> ParseType<'a> for SyntaxFieldUnnamed {
     type Input = Field;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
-        let attrs = Attributes::parse_for_field(&input.attrs)?;
-        let attrs_else = Attributes::parse_for_field_else(&input.attrs)?;
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+        let args = FieldArgs::from_attributes(&input.attrs)?;
         let ty = &input.ty;
-        if attrs.skip.is_none() {
+        if !args.skipped() {
             types.push(ty);
         };
         Ok(Self {
-            attrs,
-            attrs_else,
+            args,
             name: Ident::new("_", input.ident.span()),
         })
     }
@@ -98,7 +96,7 @@ impl<'a> ParseType<'a> for SyntaxFieldUnnamed {
 
 impl ToTokens for SyntaxFieldUnnamed {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        if self.attrs.skip.is_some() {
+        if self.args.skipped() {
             return;
         }
 
@@ -107,7 +105,7 @@ impl ToTokens for SyntaxFieldUnnamed {
 
         let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
 
-        let content = Attributes::to_conditional_tokens(&self.attrs, &self.attrs_else, name, &default_content);
+        let content = self.args.to_conditional_tokens(name, &default_content);
 
         tokens.extend(content);
     }
@@ -122,7 +120,7 @@ impl SyntaxFieldsNamed {
     pub fn decl(&self) -> Punctuated<Ident, Comma> {
         let mut decls = Punctuated::new();
         for field in &self.fields {
-            if field.attrs.skip.is_none() {
+            if !field.args.skipped() {
                 decls.push(field.decl());
             }
         }
@@ -136,7 +134,7 @@ impl<'a> ParseType<'a> for SyntaxFieldsNamed {
     fn parse_type(
         types: &mut Vec<&'a Type>,
         input: &'a Self::Input,
-    ) -> Result<Self, SyntaxError> {
+    ) -> SynResult<Self> {
         let mut fields = Vec::new();
         for field in &input.named {
             fields.push(SyntaxFieldNamed::parse_type(types, field)?);
@@ -174,7 +172,7 @@ impl<'a> ParseType<'a> for SyntaxFieldsUnnamed {
     fn parse_type(
         types: &mut Vec<&'a Type>,
         input: &'a Self::Input,
-    ) -> Result<Self, SyntaxError> {
+    ) -> SynResult<Self> {
         let mut fields = Vec::new();
         for (i, field) in input.unnamed.iter().enumerate() {
             let index = Ident::new(&format!("__{i}"), field.span());
@@ -204,7 +202,11 @@ impl ToTokens for SyntaxFieldsDecl {
         match self {
             SyntaxFieldsDecl::Named(inner) => {
                 let span = inner.span();
-                tokens.extend(quote_spanned! { span => { #inner, .. } });
+                if inner.is_empty() {
+                    tokens.extend(quote_spanned! { span => { .. } });
+                } else {
+                    tokens.extend(quote_spanned! { span => { #inner, .. } });
+                }
             }
             SyntaxFieldsDecl::Unnamed(inner) => {
                 let span = inner.span();
@@ -235,7 +237,7 @@ impl SyntaxFields {
 impl<'a> ParseType<'a> for SyntaxFields {
     type Input = Fields;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         match &input {
             Fields::Named(fields_named) => Ok(Self::Named(SyntaxFieldsNamed::parse_type(
                 types,

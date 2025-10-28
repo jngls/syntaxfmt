@@ -3,13 +3,11 @@ use std::mem::take;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    Data, DeriveInput, Generics, Ident, Type, WhereClause, parse_quote_spanned,
-    punctuated::Punctuated, spanned::Spanned, token::Where,
+    Data, DeriveInput, Error as SynError, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult, Type, WhereClause, parse_quote_spanned, punctuated::Punctuated, spanned::Spanned, token::Where
 };
 
 use crate::{
-    SyntaxError,
-    components::{attributes::Attributes, content::Content},
+    attributes::{args::TypeArgs, content::{Content, Skipped, ToConditionalTokens}},
     intermediate::{fields::SyntaxFields, parse_type::ParseType, variants::SyntaxVariants},
 };
 
@@ -22,7 +20,7 @@ pub enum SyntaxTypeKind {
 impl<'a> ParseType<'a> for SyntaxTypeKind {
     type Input = Data;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
         match input {
             Data::Struct(data_struct) => Ok(Self::Struct(SyntaxFields::parse_type(
                 types,
@@ -32,7 +30,7 @@ impl<'a> ParseType<'a> for SyntaxTypeKind {
                 types,
                 &data_enum.variants,
             )?)),
-            Data::Union(data_union) => Err(SyntaxError::Union(data_union.union_token)),
+            Data::Union(data_union) => Err(SynError::new_spanned(data_union.union_token, "syntaxfmt cannot be derived for unions")),
         }
     }
 }
@@ -62,8 +60,7 @@ impl ToTokens for SyntaxTypeKind {
 
 #[derive(Debug, Clone)]
 pub struct SyntaxType<'a> {
-    pub attrs: Attributes,
-    pub attrs_else: Option<Attributes>,
+    pub args: TypeArgs,
     pub types: Vec<&'a Type>,
     pub kind: SyntaxTypeKind,
     pub generics: &'a Generics,
@@ -73,11 +70,10 @@ pub struct SyntaxType<'a> {
 impl<'a> SyntaxType<'a> {
     fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
         let state = self
-            .attrs
-            .state
-            .as_ref()
-            .map(|(_, s)| s.to_token_stream().clone())
+            .args.args.state.as_ref()
+            .map(|path| path.to_token_stream().clone())
             .unwrap_or(quote! { __SyntaxFmtState });
+
         let mut impl_gen = self.generics.params.clone();
         let ty_gen = self.generics.params.clone();
         let mut where_clause = self.generics.where_clause.clone().unwrap_or(WhereClause {
@@ -86,11 +82,13 @@ impl<'a> SyntaxType<'a> {
         });
 
         let span = impl_gen.span();
-        if self.attrs.state.is_none() {
-            impl_gen.push(parse_quote_spanned!(span => #state));
+        let lifetimes = &self.args.lifetimes;
+        impl_gen.extend(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam::new(lt.clone()))));
+        if self.args.args.state.is_none() {
+            impl_gen.push(parse_quote_spanned!(span => #state ));
         }
 
-        if let Some((_, bound)) = &self.attrs.state_bound {
+        if let Some(bound) = &self.args.args.state_bound {
             let span = bound.span();
             where_clause
                 .predicates
@@ -117,14 +115,12 @@ impl<'a> SyntaxType<'a> {
 impl<'a> ParseType<'a> for SyntaxType<'a> {
     type Input = DeriveInput;
 
-    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> Result<Self, SyntaxError> {
-        let attrs = Attributes::parse_for_type(&input.attrs)?;
-        let attrs_else = Attributes::parse_for_type_else(&input.attrs)?;
+    fn parse_type(types: &mut Vec<&'a Type>, input: &'a Self::Input) -> SynResult<Self> {
+        let args = TypeArgs::from_attributes(&input.attrs)?;
         let kind = SyntaxTypeKind::parse_type(types, &input.data)?;
 
         Ok(Self {
-            attrs,
-            attrs_else,
+            args,
             types: take(types),
             kind,
             generics: &input.generics,
@@ -142,8 +138,8 @@ impl<'a> ToTokens for SyntaxType<'a> {
 
         let default_content = Content::Tokens(self.kind.to_token_stream());
 
-        let content = if self.attrs.skip.is_none() {
-            Attributes::to_conditional_tokens(&self.attrs, &self.attrs_else, &quote! { self }, &default_content)
+        let content = if !self.args.skipped() {
+            self.args.to_conditional_tokens(&quote! { self }, &default_content)
         } else {
             TokenStream2::new()
         };

@@ -1,7 +1,36 @@
 #![allow(unused)]
 
+use std::marker::PhantomData;
+
 use syntaxfmt_macros::SyntaxFmt as SyntaxFmtDerive;
 use syntaxfmt::{syntax_fmt, Mode, SyntaxFmt, SyntaxFormatter};
+
+// =============================================================================
+// empty structs
+// =============================================================================
+#[derive(SyntaxFmtDerive)]
+struct Unit;
+
+#[test]
+fn test_unit() {
+    assert_eq!(format!("{}", syntax_fmt(&Unit)), "");
+}
+
+#[derive(SyntaxFmtDerive)]
+struct EmptyNamed { }
+
+#[test]
+fn test_empty_named() {
+    assert_eq!(format!("{}", syntax_fmt(&EmptyNamed { })), "");
+}
+
+#[derive(SyntaxFmtDerive)]
+struct EmptyUnnamed();
+
+#[test]
+fn test_empty_unnamed() {
+    assert_eq!(format!("{}", syntax_fmt(&EmptyUnnamed())), "");
+}
 
 // =============================================================================
 // skip
@@ -207,7 +236,7 @@ fn my_formatter<S>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result 
 
 #[derive(SyntaxFmtDerive)]
 struct WithContentPath {
-    #[syntax(cont = my_formatter)]
+    #[syntax(cont_with = my_formatter)]
     field: &'static str,
 }
 
@@ -219,7 +248,7 @@ fn test_content_path_as_formatter() {
 
 #[derive(SyntaxFmtDerive)]
 struct WithContentClosure {
-    #[syntax(cont = |field: &str, f: &mut SyntaxFormatter<_>| write!(f, "closure[{}]", field))]
+    #[syntax(cont_with = |field: &str, f: &mut SyntaxFormatter<_>| write!(f, "closure[{}]", field))]
     field: &'static str,
 }
 
@@ -234,7 +263,7 @@ fn my_struct_formatter<S>(_struct: &WithOuterContentPath, f: &mut SyntaxFormatte
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(cont = my_struct_formatter)]
+#[syntax(cont_with = my_struct_formatter)]
 struct WithOuterContentPath {
     field: &'static str,
 }
@@ -246,7 +275,7 @@ fn test_outer_content_path_as_formatter() {
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(cont = |_struct: &Self, f: &mut SyntaxFormatter<_>| write!(f, "closure[{}]", _struct.field))]
+#[syntax(cont_with = |_struct: &Self, f: &mut SyntaxFormatter<_>| write!(f, "closure[{}]", _struct.field))]
 struct WithOuterContentClosure {
     field: &'static str,
 }
@@ -406,7 +435,7 @@ fn is_long(s: &str) -> bool {
 
 #[derive(SyntaxFmtDerive)]
 struct WithEvalPath {
-    #[syntax(eval = is_long)]
+    #[syntax(eval_with = is_long)]
     text: &'static str,
 }
 
@@ -421,7 +450,7 @@ fn test_eval_path() {
 
 #[derive(SyntaxFmtDerive)]
 struct WithEvalClosure {
-    #[syntax(eval = |s: &str| s.contains('p'))]
+    #[syntax(eval_with = |s: &str| s.contains('p'))]
     text: &'static str,
 }
 
@@ -439,7 +468,7 @@ fn is_long_outer(s: &WithOuterEvalPath) -> bool {
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(eval = is_long_outer)]
+#[syntax(eval_with = is_long_outer)]
 struct WithOuterEvalPath {
     text: &'static str,
 }
@@ -454,7 +483,7 @@ fn test_outer_eval_path() {
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(eval = |s: &Self| s.text.contains('p'))]
+#[syntax(eval_with = |s: &Self| s.text.contains('p'))]
 struct WithOuterEvalClosure {
     text: &'static str,
 }
@@ -512,7 +541,7 @@ fn resolve_formatter(field: &str, f: &mut SyntaxFormatter<TestResolver>) -> std:
 #[derive(SyntaxFmtDerive)]
 #[syntax(state = TestResolver)]
 struct WithImmutable {
-    #[syntax(cont = resolve_formatter)]
+    #[syntax(cont_with = resolve_formatter)]
     name: &'static str,
 }
 
@@ -534,7 +563,7 @@ fn resolve_formatter_bounded<S: Resolver>(field: &str, f: &mut SyntaxFormatter<S
 #[derive(SyntaxFmtDerive)]
 #[syntax(bound = Resolver)]
 struct WithImmutableBounded {
-    #[syntax(cont = resolve_formatter_bounded)]
+    #[syntax(cont_with = resolve_formatter_bounded)]
     name: &'static str,
 }
 
@@ -572,7 +601,7 @@ fn counting_formatter(field: &str, f: &mut SyntaxFormatter<TestCounter>) -> std:
 #[derive(SyntaxFmtDerive)]
 #[syntax(state = TestCounter)]
 struct WithMutableState {
-    #[syntax(cont = counting_formatter)]
+    #[syntax(cont_with = counting_formatter)]
     name: &'static str,
 }
 
@@ -602,7 +631,7 @@ fn counting_formatter_bounded<S: Counter>(field: &str, f: &mut SyntaxFormatter<S
 #[derive(SyntaxFmtDerive)]
 #[syntax(bound = Counter)]
 struct WithMutableStateBounded {
-    #[syntax(cont = counting_formatter_bounded)]
+    #[syntax(cont_with = counting_formatter_bounded)]
     name: &'static str,
 }
 
@@ -610,6 +639,81 @@ struct WithMutableStateBounded {
 fn test_mutable_state_bounded() {
     let mut counter = TestCounter { count: 0 };
     let s = WithMutableStateBounded { name: "item" };
+
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state_mut(&mut counter)),
+        "item#0"
+    );
+    assert_eq!(counter.count, 1);
+
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state_mut(&mut counter)),
+        "item#1"
+    );
+    assert_eq!(counter.count, 2);
+}
+
+struct StateLifetime<'a>(PhantomData<&'a i32>);
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(state = StateLifetime<'a>)]
+struct WithStateLifetime { }
+
+#[test]
+fn test_lifetime_state() {
+    let lifetime_state = StateLifetime(Default::default());
+
+    assert_eq!(format!("{}", syntax_fmt(&WithStateLifetime { })).state(&lifetime_state), "");
+}
+
+// =============================================================================
+// map_state and map_state_mut
+// =============================================================================
+
+fn map_state_formatter(field: &str, f: &mut SyntaxFormatter<TestCounter>) -> std::fmt::Result {
+    f.map_state(|f, state| {
+        write!(f, "{}#{}", field, state.count)
+    })
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(state = TestCounter)]
+struct WithMapState {
+    #[syntax(cont_with = map_state_formatter)]
+    name: &'static str,
+}
+
+#[test]
+fn test_map_state() {
+    let counter = TestCounter { count: 42 };
+    let s = WithMapState { name: "item" };
+
+    assert_eq!(
+        format!("{}", syntax_fmt(&s).state(&counter)),
+        "item#42"
+    );
+    // Counter should not be modified
+    assert_eq!(counter.count, 42);
+}
+
+fn map_state_mut_formatter<S: Counter>(field: &str, f: &mut SyntaxFormatter<S>) -> std::fmt::Result {
+    f.map_state_mut(|f, state| {
+        let count = state.post_inc();
+        write!(f, "{}#{}", field, count)
+    })
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = Counter)]
+struct WithMapStateMut {
+    #[syntax(cont_with = map_state_mut_formatter)]
+    name: &'static str,
+}
+
+#[test]
+fn test_map_state_mut() {
+    let mut counter = TestCounter { count: 0 };
+    let s = WithMapStateMut { name: "item" };
 
     assert_eq!(
         format!("{}", syntax_fmt(&s).state_mut(&mut counter)),
@@ -639,7 +743,7 @@ fn test_immutable_context_mut_access_panics() {
     #[derive(SyntaxFmtDerive)]
     #[syntax(state = TestCounter)]
     struct Bad {
-        #[syntax(cont = bad_formatter)]
+        #[syntax(cont_with = bad_formatter)]
         name: &'static str,
     }
 

@@ -6,13 +6,15 @@
 //!
 //! # Features
 //!
-//! - **Derive macro** - for automatic implementation of formatting logic
-//! - **Dual formatting modes** - compact and pretty-printed
-//! - **Collection support** - automatic formatting for `Vec<T>`, `&[T]`, and `[T; N]` types
-//! - **Boolean and Option support** - conditional formatting for `bool` and `Option<T>` types
-//! - **Stateful formatting** - pass user defined context through the formatting process
-//! - **Custom formatters** - override default behavior with custom functions or by explicitly implementing `SyntaxFmt`
-//! - **Flexible attributes** - control delimiters, indentation, and format strings
+//! - **Derive macro** - Automatic implementation of formatting logic
+//! - **Dual formatting modes** - Compact and pretty-printed output
+//! - **Collection support** - Automatic formatting for `Vec<T>`, `&[T]`, and `[T; N]` with custom delimiters
+//! - **Conditional formatting** - `eval` attribute for `bool` and `Option<T>` types, with `syntax_else` for else branches
+//! - **Newline control** - Fine-grained positioning with `nl` attribute (`beg`, `pre`, `cont`, `suf`)
+//! - **Indentation** - `ind` attribute for automatic indentation regions in pretty mode
+//! - **Stateful formatting** - Pass mutable state through formatting with trait bounds
+//! - **Custom formatters** - Override field formatting with custom functions via `cont` attribute
+//! - **Minimal syntax** - Simple, composable attributes: `pre`, `suf`, `delim`, `eval`, `nl`, `ind`, `cont`, `skip`
 //!
 //! # Cargo Features
 //!
@@ -410,6 +412,20 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     #[track_caller]
     pub fn state_mut<'a>(&'a mut self) -> RefMut<'a, S> {
         RefMut::map(self.state.borrow_mut(), |s| s.as_mut())
+    }
+
+    /// Takes a closure that receives this formatter and immutable access to state and returns a value of its choice.
+    #[must_use]
+    #[inline]
+    pub fn map_state<F, R>(&mut self, map: F) -> R where F: FnOnce(&mut Self, &S) -> R {
+        map(self, self.state.borrow().as_ref())
+    }
+
+    /// Takes a closure that receives this formatter and mutable access to state and returns a value of its choice.
+    #[must_use]
+    #[inline]
+    pub fn map_state_mut<F, R>(&mut self, map: F) -> R where F: FnOnce(&mut Self, &mut S) -> R {
+        map(self, self.state.borrow_mut().as_mut())
     }
 
     /// Writes a dual string to the formatter based on prettiness.

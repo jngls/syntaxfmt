@@ -14,7 +14,7 @@ keywords = ["syntax", "formatting", "pretty-print", "ast", "derive"]
 
 [workspace]
 members = [
-  "crates/*",
+  "crates/*"
 ]
 
 [features]
