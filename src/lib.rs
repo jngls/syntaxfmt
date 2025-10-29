@@ -9,7 +9,7 @@
 //! - **Derive Macro** - Automatic implementation via `#[derive(SyntaxFmt)]`
 //! - **Flexible Decorations** - Add prefixes, suffixes, and collection delimiters
 //! - **Modal Formatting** - Customise formatting output for different modes, normal and pretty
-//! - **Automatic Layout** - Fine-grained layout control with newlines and indentation
+//! - **Automatic Layout** - Automated layout control with newlines and indentation
 //! - **Content Replacement** - Override field formatting with literals or custom functions
 //! - **Conditional Formatting** - Format based on arbitrary boolean expressions, with else support
 //! - **Stateful Formatting** - Pass mutable or immutable state for context-aware output
@@ -17,6 +17,21 @@
 //! # Cargo Features
 //!
 //! - **`derive`** - enables `SyntaxFmt` derive macro (on by default)
+//!
+//! # Contents
+//!
+//! - [Quick Start](#quick-start)
+//! - [Adding Decorations](#adding-decorations)
+//! - [Collections and Delimiters](#collections-and-delimiters)
+//! - [Skip Types and Fields](#skip-types-and-fields)
+//! - [Pretty Mode](#pretty-mode)
+//! - [Indentation and Layout](#indentation-and-layout)
+//! - [Content Replacement](#content-replacement)
+//! - [Conditional Formatting](#conditional-formatting)
+//! - [Fallback Formatting](#fallback-formatting)
+//! - [Stateful Formatting](#stateful-formatting)
+//!   - [Additional State Examples](#additional-state-examples)
+//! - [Reference](#reference)
 //!
 //! # Quick Start
 //!
@@ -39,8 +54,10 @@
 //!
 //! # Adding Decorations
 //!
-//! Use `pre` (prefix) and `suf` (suffix) attributes to add syntax around fields. You can
-//! apply these at the field level or type level.
+//! Use `pre` (prefix) and `suf` (suffix) attributes to add syntax around fields.
+//! 
+//! The `pre` and `suf` attribute arguments can be applied at field, type, or
+//! `syntax_else` level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -62,6 +79,8 @@
 //!
 //! Collections (`Vec<T>`, `&[T]`, `[T; N]`) are formatted automatically with customizable
 //! delimiters. The default delimiter is `,` for normal mode and `, ` for pretty mode.
+//! 
+//! The `delim` attribute argument can be applied at field, type, or `syntax_else` level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -81,9 +100,11 @@
 //! assert_eq!(format!("{}", syntax_fmt(&path)), "std::collections::HashMap");
 //! ```
 //!
-//! # Omit Fields and Types from Formatting
+//! # Skip Types and Fields
 //!
-//! Use `skip` to exclude fields from output entirely, useful for metadata or internal state.
+//! Use `skip` to exclude fields or entire types from output, useful for metadata or internal state.
+//! 
+//! The `skip` attribute argument can be applied at field or type level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -103,8 +124,9 @@
 //! # Pretty Mode
 //!
 //! Enable pretty printing with the `.pretty()` method. Use modal attributes (arrays with
-//! two values) to specify different formatting for normal vs pretty mode. Pretty mode
-//! also influences newlines and indentation, which we'll cover next.
+//! two values) to specify different formatting for normal vs pretty mode. Most attributes
+//! support modal values and can be applied at field, type, or `syntax_else` level. Pretty
+//! mode also influences newlines and indentation, which we'll cover next.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -129,12 +151,22 @@
 //! # Indentation and Layout
 //!
 //! Use `ind` (indent) to increase the indentation level for a field's content. Use `nl` to
-//! control newline positions: `beg` (beginning), `pre` (after prefix), `cont` (after content),
-//! `suf` (after suffix). Newlines default to `""` (normal) and "\n" pretty, but you can
-//! alter them with the `.newline(["", "\r\n"])` modifier. Indentation segments default to
-//! `""` (normal) and `"    "` (pretty), but you can alter them with the `.indent(["", "\t"])`
-//! modifier.
+//! control newline positions:
+//! 
+//! - `beg` - beginning
+//! - `pre` - after prefix
+//! - `cont` - after content
+//! - `suf` - after suffix
+//! 
+//! Newlines default to `""` (normal) and `"\n"`` (pretty), and you can alter them with the
+//! `.newline(["", "\r\n"])` builder method.
+//! 
+//! Indentation segments default to `""` (normal) and `"    "` (pretty), and you can
+//! alter them with the `.indent(["", "\t"])` builder method.
 //!
+//! The `ind` and `nl` attribute arguments can be applied at field, type, or
+//! `syntax_else` level.
+//! 
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
@@ -177,6 +209,8 @@
 //!
 //! Replace a field's value with literal text (or any value that implements
 //! SyntaxFmt) using `cont`.
+//! 
+//! The `cont` attribute argument can be applied at field, type, or `syntax_else` level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -195,7 +229,10 @@
 //! assert_eq!(format!("{}", syntax_fmt(&decl)), "pub fn");
 //! ```
 //!
-//! Use `cont_with` with a function for custom formatting logic:
+//! Use `cont_with` with a function for custom formatting logic.
+//! 
+//! The `cont_with` attribute argument can be applied at field, type, or
+//! `syntax_else` level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
@@ -214,7 +251,7 @@
 //! assert_eq!(format!("{}", syntax_fmt(&lit)), "\"hello\"");
 //! ```
 //!
-//! Or use `cont_with` with a closure inline:
+//! Or use `cont_with` with a closure inline.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
@@ -231,7 +268,9 @@
 //!
 //! # Conditional Formatting
 //!
-//! For conditional logic with arbitrary expressions, use `eval`:
+//! For conditional logic with arbitrary expressions, use `eval`.
+//! 
+//! The `eval` attribute argument can be applied at field or type level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -252,7 +291,9 @@
 //! assert_eq!(format!("{}", syntax_fmt(&large)), "const Y = 200;");
 //! ```
 //!
-//! Use `eval_with` with a function for reusable conditional logic:
+//! Use `eval_with` with a function for reusable conditional logic.
+//! 
+//! The `eval_with` attribute argument can be applied at field or type level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -274,7 +315,7 @@
 //! assert_eq!(format!("{}", syntax_fmt(&long)), "// this is long");
 //! ```
 //!
-//! Or use `eval_with` with a closure:
+//! Or use `eval_with` with a closure inline.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -310,8 +351,8 @@
 //! assert_eq!(format!("{}", syntax_fmt(&without)), "return ");
 //! ```
 //!
-//! When `Option<T>` fields have decorations, use `eval` to prevent decorations from
-//! appearing when `None`:
+//! When `Option<T>` fields have decorations, use `eval` or `eval_with` to
+//! prevent decorations from appearing when `None`.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -338,10 +379,11 @@
 //! # Fallback Formatting
 //!
 //! An additional attribute `#[syntax_else]`, which enables alternate
-//! formatting when an `eval` or `eval_with` condition is false.
+//! formatting when an `eval` or `eval_with` attribute argument is specified
+//! and its result is `false`.
 //! 
-//! Fallback formatting has a restricted set of accepted attribute args:
-//! `pre`, `suf`, `delim`, `cont`, `ind`, and `nl`
+//! Fallback formatting has a restricted set of accepted attribute arguments:
+//! `pre`, `suf`, `delim`, `cont`, `ind`, and `nl`.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -364,7 +406,8 @@
 //!
 //! Pass mutable or immutable state through formatting to enable context-aware output like
 //! symbol resolution, ID generation, or tracking. Use the `state` or `bound` attribute with
-//! the derive macro to specify the state type or trait bound.
+//! the derive macro to specify the state type or trait bound. Both `state` and `bound` can
+//! only be applied at type level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, SyntaxFormatter, syntax_fmt};
@@ -397,8 +440,12 @@
 //! assert_eq!(format!("{}", syntax_fmt(&ident).state(&resolver)), "resolved_foo");
 //! ```
 //!
-//! For more examples, see [`SyntaxFormatter::state`], [`SyntaxFormatter::state_mut`],
-//! [`SyntaxFormatter::map_state`], and [`SyntaxFormatter::map_state_mut`].
+//! ## Additional State Examples
+//! 
+//! - [`SyntaxFormatter::state`]
+//! - [`SyntaxFormatter::state_mut`]
+//! - [`SyntaxFormatter::map_state`]
+//! - [`SyntaxFormatter::map_state_mut`]
 //!
 //! # Reference
 //!
@@ -406,19 +453,19 @@
 //!
 //! Attributes can be applied at the type level or field level. Most have short and long forms.
 //!
-//! | Attribute | Short | Description | Field / Type |
-//! |-----------|-------|-------------|--------------|
-//! | `prefix` | `pre` | Text before content | field/type |
-//! | `suffix` | `suf` | Text after content | field/type |
-//! | `delimiter` | `delim` | Separator between collection elements | field/type |
-//! | `content` | `cont` | Literal replacement for field value | field/type |
-//! | `content_with` | `cont_with` | Custom formatter function/closure | field/type |
+//! | Attribute | Short | Description | Field / Type / Else |
+//! |-----------|-------|-------------|---------------------|
+//! | `prefix` | `pre` | Text before content | field/type/else |
+//! | `suffix` | `suf` | Text after content | field/type/else |
+//! | `delimiter` | `delim` | Separator between collection elements | field/type/else |
+//! | `content` | `cont` | Literal replacement for field value | field/type/else |
+//! | `content_with` | `cont_with` | Custom formatter function/closure | field/type/else |
 //! | `evaluate` | `eval` | Conditional expression | field/type |
 //! | `evaluate_with` | `eval_with` | Conditional function/closure | field/type |
-//! | `newline` | `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type |
-//! | `indent` | `ind` | Increase indent level for field content | field/type |
-//! | `skip` | - | Omit field from formatting | field/type |
-//! | `state` | - | Specify state type (type-level only) | type |
+//! | `newline` | `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
+//! | `indent` | `ind` | Increase indent level for field content | field/type/else |
+//! | `skip` | `skip` | Omit field from formatting | field/type |
+//! | `state` | `state` | Specify state type (type-level only) | type |
 //! | `state_bound` | `bound` | Add trait bound to state (type-level only) | type |
 //!
 //! ## Modal Attributes
