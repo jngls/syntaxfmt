@@ -17,19 +17,41 @@ use crate::{
     syn_err,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ArgType {
+    Indent,
+    Newline,
+    Prefix,
+    Suffix,
+    Delim,
+    Eval,
+    Cont,
+    Bound,
+    State,
+    Skip,
+}
+
 pub trait TakeArgs: Sized {
     #[must_use]
     fn take_args(self, args: &mut UnverifiedArgs, have_eval: bool) -> SynResult<Self>;
 
+    // Classifies for visit checking purposes
     #[inline]
     #[must_use]
-    fn normalise_ident(ident: &Ident) -> String {
+    fn classify_ident(ident: &Ident) -> ArgType {
         match ident.to_string().as_str() {
-            "cont_with" => "cont",
-            "eval_with" => "eval",
-            s => s,
+            "ind" | "indent" => ArgType::Indent,
+            "nl" | "newline" => ArgType::Newline,
+            "pre" | "prefix" => ArgType::Prefix,
+            "suf" | "suffix" => ArgType::Suffix,
+            "delim" | "delimiter" => ArgType::Delim,
+            "eval" | "evaluate" | "eval_with" | "evaluate_with" => ArgType::Eval,
+            "cont" | "content" | "cont_with" | "content_with" => ArgType::Cont,
+            "bound" | "state_bound" => ArgType::Bound,
+            "state" => ArgType::State,
+            "skip" => ArgType::Skip,
+            _ => unreachable!("earlier checks in UnverifiedArgs::parse should have pre-filtered the possible idents")
         }
-        .into()
     }
 }
 
@@ -66,7 +88,7 @@ impl TakeArgs for CommonArgs {
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_common) {
-            if !visited.insert(Self::normalise_ident(&arg.ident)) {
+            if !visited.insert(Self::classify_ident(&arg.ident)) {
                 return syn_err(
                     &arg.ident,
                     "syntaxfmt found duplicate or conflicting attribute argument",
@@ -139,7 +161,7 @@ impl TakeArgs for TypeArgsNormal {
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_args) {
-            if !visited.insert(Self::normalise_ident(&arg.ident)) {
+            if !visited.insert(Self::classify_ident(&arg.ident)) {
                 return syn_err(
                     &arg.ident,
                     "syntaxfmt found duplicate or conflicting attribute argument",
@@ -232,7 +254,7 @@ impl TakeArgs for FieldArgsNormal {
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
         for arg in args.args.extract_if(.., Self::match_args) {
-            if !visited.insert(Self::normalise_ident(&arg.ident)) {
+            if !visited.insert(Self::classify_ident(&arg.ident)) {
                 return syn_err(
                     &arg.ident,
                     "syntaxfmt found duplicate or conflicting attribute argument",
