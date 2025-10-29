@@ -715,6 +715,13 @@ fn dummy_formatter_bounded<'a, S: TraitLifetime<'a>>(
     write!(f, "bound lifetime works")
 }
 
+fn dummy_formatter_same_lifetime<'a, S: TraitLifetime<'a>>(
+    _: &WithSameLifetime<'a>,
+    f: &mut SyntaxFormatter<S>,
+) -> std::fmt::Result {
+    write!(f, "bound lifetime works")
+}
+
 #[derive(SyntaxFmtDerive)]
 #[syntax(state = StateLifetime<'a>, cont_with = dummy_formatter)]
 struct WithStateLifetime {}
@@ -744,6 +751,28 @@ fn test_lifetime_bound() {
         format!(
             "{}",
             syntax_fmt(&WithBoundLifetime {}).state(&lifetime_state)
+        ),
+        "bound lifetime works"
+    );
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = TraitLifetime<'a>, cont_with = dummy_formatter_same_lifetime)]
+struct WithSameLifetime<'a> {
+    #[syntax(skip)]
+    _marker: PhantomData<&'a i32>,
+}
+
+impl<'a> TraitLifetime<'a> for WithSameLifetime<'a> {}
+
+#[test]
+fn test_same_lifetime() {
+    let lifetime_state = StateLifetime(Default::default());
+
+    assert_eq!(
+        format!(
+            "{}",
+            syntax_fmt(&WithSameLifetime { _marker: Default::default() }).state(&lifetime_state)
         ),
         "bound lifetime works"
     );

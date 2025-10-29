@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{collections::HashSet, mem::take};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote, quote_spanned};
@@ -88,6 +88,7 @@ impl<'a> SyntaxType<'a> {
     }
 
     fn split_generics(&self) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+        // Determine the state type: either from user-specified state attribute or default
         let state = self
             .args
             .args
@@ -96,24 +97,47 @@ impl<'a> SyntaxType<'a> {
             .map(|path| path.to_token_stream().clone())
             .unwrap_or(quote! { __SyntaxFmtState });
 
-        let mut impl_gen = self.generics.params.clone();
-        let ty_gen = self.generics.params.clone();
+        // Start with the original generics for both impl and type
+        let mut impl_generics = self.generics.params.clone();
+        let type_generics = self.generics.params.clone();
+
+        // Initialize where clause (create empty one if it doesn't exist)
         let mut where_clause = self.generics.where_clause.clone().unwrap_or(WhereClause {
             where_token: Where::default(),
             predicates: Punctuated::new(),
         });
 
-        let span = impl_gen.span();
-        let lifetimes = &self.args.lifetimes;
-        impl_gen.extend(
-            lifetimes
-                .iter()
-                .map(|lt| GenericParam::Lifetime(LifetimeParam::new(lt.clone()))),
-        );
+        // Collect existing lifetime names to avoid duplicates
+        let existing_lifetimes: HashSet<&Ident> = self
+            .generics
+            .params
+            .iter()
+            .filter_map(|param| {
+                if let GenericParam::Lifetime(lt_param) = param {
+                    Some(&lt_param.lifetime.ident)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Add lifetimes from attributes (e.g., from state or bound), but only if they don't already exist
+        let span = impl_generics.span();
+        let new_lifetimes = self
+            .args
+            .lifetimes
+            .iter()
+            .filter(|lt| !existing_lifetimes.contains(&lt.ident))
+            .map(|lt| GenericParam::Lifetime(LifetimeParam::new(lt.clone())));
+
+        impl_generics.extend(new_lifetimes);
+
+        // Add state type parameter if not explicitly provided by user
         if self.args.args.state.is_none() {
-            impl_gen.push(parse_quote_spanned!(span => #state ));
+            impl_generics.push(parse_quote_spanned!(span => #state ));
         }
 
+        // Add state bound to where clause if specified
         if let Some(bound) = &self.args.args.state_bound {
             let span = bound.span();
             where_clause
@@ -121,6 +145,7 @@ impl<'a> SyntaxType<'a> {
                 .push(syn::parse_quote_spanned! {span => #state: #bound });
         }
 
+        // Add SyntaxFmt bounds for all field types
         for &field_ty in &self.types {
             let span = field_ty.span();
             where_clause.predicates.push(
@@ -128,11 +153,13 @@ impl<'a> SyntaxType<'a> {
             );
         }
 
+        // Only include where clause if it has predicates
         let where_clause = (!where_clause.predicates.is_empty()).then_some(where_clause);
+
         (
             state,
-            impl_gen.to_token_stream(),
-            ty_gen.to_token_stream(),
+            impl_generics.to_token_stream(),
+            type_generics.to_token_stream(),
             where_clause.to_token_stream(),
         )
     }
