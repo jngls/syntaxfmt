@@ -18,21 +18,6 @@
 //!
 //! - **`derive`** - enables `SyntaxFmt` derive macro (on by default)
 //!
-//! # Contents
-//!
-//! - [Quick Start](#quick-start)
-//! - [Adding Decorations](#adding-decorations)
-//! - [Collections and Delimiters](#collections-and-delimiters)
-//! - [Skip Types and Fields](#skip-types-and-fields)
-//! - [Pretty Mode](#pretty-mode)
-//! - [Indentation and Layout](#indentation-and-layout)
-//! - [Content Replacement](#content-replacement)
-//! - [Conditional Formatting](#conditional-formatting)
-//! - [Fallback Formatting](#fallback-formatting)
-//! - [Stateful Formatting](#stateful-formatting)
-//!   - [Additional State Examples](#additional-state-examples)
-//! - [Reference](#reference)
-//!
 //! # Quick Start
 //!
 //! The simplest use case is to derive `SyntaxFmt` on your types and they'll format
@@ -123,10 +108,11 @@
 //!
 //! # Pretty Mode
 //!
-//! Enable pretty printing with the `.pretty()` method. Use modal attributes (arrays with
-//! two values) to specify different formatting for normal vs pretty mode. Most attributes
-//! support modal values and can be applied at field, type, or `syntax_else` level. Pretty
-//! mode also influences newlines and indentation, which we'll cover next.
+//! Enable pretty printing with the `.pretty()` builder method. Use modal attributes
+//! (arrays with two values) to specify different formatting for normal vs pretty mode.
+//! Most attributes support modal values and can be applied at field, type, or
+//! `syntax_else` level. Pretty mode also influences newlines and indentation, which
+//! we'll cover next.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -453,20 +439,20 @@
 //!
 //! Attributes can be applied at the type level or field level. Most have short and long forms.
 //!
-//! | Attribute | Short | Description | Field / Type / Else |
-//! |-----------|-------|-------------|---------------------|
-//! | `prefix` | `pre` | Text before content | field/type/else |
-//! | `suffix` | `suf` | Text after content | field/type/else |
-//! | `delimiter` | `delim` | Separator between collection elements | field/type/else |
-//! | `content` | `cont` | Literal replacement for field value | field/type/else |
-//! | `content_with` | `cont_with` | Custom formatter function/closure | field/type/else |
-//! | `evaluate` | `eval` | Conditional expression | field/type |
-//! | `evaluate_with` | `eval_with` | Conditional function/closure | field/type |
-//! | `newline` | `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
-//! | `indent` | `ind` | Increase indent level for field content | field/type/else |
-//! | `skip` | `skip` | Omit field from formatting | field/type |
-//! | `state` | `state` | Specify state type (type-level only) | type |
-//! | `state_bound` | `bound` | Add trait bound to state (type-level only) | type |
+//! | Argument | Description | Field / Type / Else |
+//! |----------|-------------|---------------------|
+//! | `pre` | Text before content | field/type/else |
+//! | `suf` | Text after content | field/type/else |
+//! | `delim` | Separator between collection elements | field/type/else |
+//! | `cont` | Literal replacement for field value | field/type/else |
+//! | `cont_with` | Custom formatter function/closure | field/type/else |
+//! | `eval` | Conditional expression | field/type |
+//! | `eval_with` | Conditional function/closure | field/type |
+//! | `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
+//! | `ind` | Increase indent level for field content | field/type/else |
+//! | `skip` | Omit field from formatting | field/type |
+//! | `state` | Specify state type (type-level only) | type |
+//! | `bound` | Add trait bound to state (type-level only) | type |
 //!
 //! ## Modal Attributes
 //!
@@ -487,14 +473,15 @@
 //! - Tuples: Up to 8 elements
 //! - Unit: `()`
 //! 
-//! Please contact us or submit a PR if a core implementation is missing.
+//! Please [submit a ticket](https://github.com/jngls/syntaxfmt/issues/new) or
+//! submit a PR if a core implementation is missing.
 //!
 //! ## Builder Methods
 //!
 //! Methods on `SyntaxDisplay` returned by `syntax_fmt()`:
 //! - `.pretty()` - Enable pretty printing mode
-//! - `.indent([normal, pretty])` - Set indentation strings (default: `["", "    "]`)
-//! - `.newline([normal, pretty])` - Set newline strings (default: `["", "\n"]`)
+//! - `.indent(["normal", "pretty"])` - Set indentation strings (default: `["", "    "]`)
+//! - `.newline(["normal", "pretty"])` - Set newline strings (default: `["", "\n"]`)
 //! - `.state(&state)` - Pass immutable state
 //! - `.state_mut(&mut state)` - Pass mutable state
 
@@ -505,6 +492,7 @@ use std::ops::{Deref, DerefMut};
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
+/// Formatter mode
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     #[default]
@@ -613,6 +601,9 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
 
     /// Returns a reference to the user-defined state.
     ///
+    /// # Panics
+    /// * Panics if state is `()`.
+    ///
     /// # Example
     ///
     /// ```
@@ -651,8 +642,12 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         Ref::map(self.state.borrow(), |s| s.as_ref())
     }
 
-    /// Returns a mutable reference to the user-defined state. Panics if state is immutable.
+    /// Returns a mutable reference to the user-defined state.
     ///
+    /// # Panics
+    /// * Panics if state is `()`.
+    /// * Panics if state is immutable.
+    /// 
     /// # Example
     ///
     /// ```
@@ -698,6 +693,13 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///
     /// Useful when you need concurrent access to both the formatter and state within a single expression,
     /// such as within a `write!` macro.
+    ///
+    /// # Arguments
+    ///
+    /// * `map` - mapping function with signature `FnOnce(&mut Self, &S) -> R`
+    ///
+    /// # Panics
+    /// * Panics if state is `()`.
     ///
     /// # Example
     ///
@@ -746,6 +748,14 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///
     /// Useful when you need concurrent access to both the formatter and mutable state within a single expression,
     /// such as within a `write!` macro.
+    ///
+    /// # Arguments
+    ///
+    /// * `map` - mapping function with signature `FnOnce(&mut Self, &mut S) -> R`
+    ///
+    /// # Panics
+    /// * Panics if state is `()`.
+    /// * Panics if state is immutable.
     ///
     /// # Example
     ///

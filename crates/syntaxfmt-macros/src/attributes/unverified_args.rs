@@ -131,7 +131,7 @@ impl Parse for UnverifiedArgs {
 
             let ident = input.parse::<Ident>()?;
 
-            if ident == "ind" || ident == "indent" {
+            if ident == "ind" {
                 attrs.push(UnverifiedArg {
                     ident: ident.clone(),
                     kind: UnverifiedArgKind::Indent(ident),
@@ -141,7 +141,7 @@ impl Parse for UnverifiedArgs {
                     ident: ident.clone(),
                     kind: UnverifiedArgKind::Skip(ident),
                 });
-            } else if ident == "nl" || ident == "newline" {
+            } else if ident == "nl" {
                 if input.peek(SynEq) {
                     input.parse::<SynEq>()?;
                     let newlines = Self::parse_idents(&mut input)?;
@@ -155,14 +155,14 @@ impl Parse for UnverifiedArgs {
                         kind: UnverifiedArgKind::Newlines(Punctuated::new()),
                     });
                 }
-            } else if ident == "pre" || ident == "prefix" {
+            } else if ident == "pre" {
                 input.parse::<SynEq>()?;
                 let strs = Self::parse_litstrs(&mut input)?;
                 attrs.push(UnverifiedArg {
                     ident,
                     kind: UnverifiedArgKind::Prefix(strs),
                 });
-            } else if ident == "suf" || ident == "suffix" {
+            } else if ident == "suf" {
                 input.parse::<SynEq>()?;
                 let strs = Self::parse_litstrs(&mut input)?;
                 attrs.push(UnverifiedArg {
@@ -176,14 +176,14 @@ impl Parse for UnverifiedArgs {
                     ident,
                     kind: UnverifiedArgKind::Delims(strs),
                 });
-            } else if ident == "eval" || ident == "evaluate" {
+            } else if ident == "eval" {
                 input.parse::<SynEq>()?;
                 let expr = input.parse::<Expr>()?;
                 attrs.push(UnverifiedArg {
                     ident,
                     kind: UnverifiedArgKind::Eval(expr),
                 });
-            } else if ident == "eval_with" || ident == "evaluate_with" {
+            } else if ident == "eval_with" {
                 input.parse::<SynEq>()?;
                 if input.peek(SynOr) {
                     let closure = input.parse::<ExprClosure>()?;
@@ -198,14 +198,14 @@ impl Parse for UnverifiedArgs {
                         kind: UnverifiedArgKind::EvalTypePath(type_path),
                     });
                 }
-            } else if ident == "cont" || ident == "content" {
+            } else if ident == "cont" {
                 input.parse::<SynEq>()?;
                 let expr = input.parse::<Expr>()?;
                 attrs.push(UnverifiedArg {
                     ident,
                     kind: UnverifiedArgKind::Content(expr),
                 });
-            } else if ident == "cont_with" || ident == "content_with" {
+            } else if ident == "cont_with" {
                 input.parse::<SynEq>()?;
                 if input.peek(SynOr) {
                     let closure = input.parse::<ExprClosure>()?;
@@ -227,7 +227,7 @@ impl Parse for UnverifiedArgs {
                     ident,
                     kind: UnverifiedArgKind::State(type_path),
                 });
-            } else if ident == "bound" || ident == "state_bound" {
+            } else if ident == "bound" {
                 input.parse::<SynEq>()?;
                 let trait_obj = input.parse::<TypeTraitObject>()?;
                 attrs.push(UnverifiedArg {

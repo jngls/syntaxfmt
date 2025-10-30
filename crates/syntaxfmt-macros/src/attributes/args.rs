@@ -40,14 +40,14 @@ pub trait TakeArgs: Sized {
     #[must_use]
     fn classify_ident(ident: &Ident) -> ArgType {
         match ident.to_string().as_str() {
-            "ind" | "indent" => ArgType::Indent,
-            "nl" | "newline" => ArgType::Newline,
-            "pre" | "prefix" => ArgType::Prefix,
-            "suf" | "suffix" => ArgType::Suffix,
-            "delim" | "delimiter" => ArgType::Delim,
-            "eval" | "evaluate" | "eval_with" | "evaluate_with" => ArgType::Eval,
-            "cont" | "content" | "cont_with" | "content_with" => ArgType::Cont,
-            "bound" | "state_bound" => ArgType::Bound,
+            "ind" => ArgType::Indent,
+            "nl" => ArgType::Newline,
+            "pre" => ArgType::Prefix,
+            "suf" => ArgType::Suffix,
+            "delim" => ArgType::Delim,
+            "eval" | "eval_with" => ArgType::Eval,
+            "cont" | "cont_with" => ArgType::Cont,
+            "bound" => ArgType::Bound,
             "state" => ArgType::State,
             "skip" => ArgType::Skip,
             _ => unreachable!("earlier checks in UnverifiedArgs::parse should have pre-filtered the possible idents")
