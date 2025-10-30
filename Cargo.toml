@@ -1,8 +1,8 @@
 [package]
 name = "syntaxfmt"
 version = "0.2.0"
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
+rust-version = "1.70"
 license = "MIT OR Apache-2.0"
 description = "A derive macro-based library for flexible syntax tree formatting with pretty printing support."
 homepage = "https://github.com/jngls/syntaxfmt"

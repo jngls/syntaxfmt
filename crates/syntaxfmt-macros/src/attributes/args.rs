@@ -87,23 +87,29 @@ impl TakeArgs for CommonArgs {
     fn take_args(mut self, args: &mut UnverifiedArgs, _have_eval: bool) -> SynResult<Self> {
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
-        for arg in args.args.extract_if(.., Self::match_common) {
-            if !visited.insert(Self::classify_ident(&arg.ident)) {
-                return syn_err(
-                    &arg.ident,
-                    "syntaxfmt found duplicate or conflicting attribute argument",
-                );
-            }
-            match arg.kind {
-                Kind::Prefix(i) => self.prefix = Prefix::from_litstrs(i)?,
-                Kind::Suffix(i) => self.suffix = Suffix::from_litstrs(i)?,
-                Kind::Delims(i) => self.delims = PushDelims::from_litstrs(i)?,
-                Kind::Content(i) => self.content = Content::from_expr(i)?,
-                Kind::ContentTypePath(i) => self.content = Content::from_type_path(i)?,
-                Kind::ContentClosure(i) => self.content = Content::from_closure(i)?,
-                Kind::Indent(_) => self.indent = Some(PushIndentRegion),
-                Kind::Newlines(i) => self.nl = Newlines::from_idents(i)?,
-                _ => unreachable!("match_common should have matched all possibilities"),
+        let mut i = 0;
+        while i < args.args.len() {
+            if Self::match_common(&mut args.args[i]) {
+                let arg = args.args.remove(i);
+                if !visited.insert(Self::classify_ident(&arg.ident)) {
+                    return syn_err(
+                        &arg.ident,
+                        "syntaxfmt found duplicate or conflicting attribute argument",
+                    );
+                }
+                match arg.kind {
+                    Kind::Prefix(i) => self.prefix = Prefix::from_litstrs(i)?,
+                    Kind::Suffix(i) => self.suffix = Suffix::from_litstrs(i)?,
+                    Kind::Delims(i) => self.delims = PushDelims::from_litstrs(i)?,
+                    Kind::Content(i) => self.content = Content::from_expr(i)?,
+                    Kind::ContentTypePath(i) => self.content = Content::from_type_path(i)?,
+                    Kind::ContentClosure(i) => self.content = Content::from_closure(i)?,
+                    Kind::Indent(_) => self.indent = Some(PushIndentRegion),
+                    Kind::Newlines(i) => self.nl = Newlines::from_idents(i)?,
+                    _ => unreachable!("match_common should have matched all possibilities"),
+                }
+            } else {
+                i += 1;
             }
         }
         Ok(self)
@@ -160,21 +166,27 @@ impl TakeArgs for TypeArgsNormal {
 
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
-        for arg in args.args.extract_if(.., Self::match_args) {
-            if !visited.insert(Self::classify_ident(&arg.ident)) {
-                return syn_err(
-                    &arg.ident,
-                    "syntaxfmt found duplicate or conflicting attribute argument",
-                );
-            }
-            match arg.kind {
-                Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
-                Kind::EvalTypePath(i) => self.eval = Eval::from_type_path(i)?,
-                Kind::EvalClosure(i) => self.eval = Eval::from_closure(i)?,
-                Kind::State(i) => self.state = Some(i),
-                Kind::StateBound(i) => self.state_bound = Some(i),
-                Kind::Skip(_) => self.skip = true,
-                _ => unreachable!("match_args should have matched all possibilities"),
+        let mut i = 0;
+        while i < args.args.len() {
+            if Self::match_args(&mut args.args[i]) {
+                let arg = args.args.remove(i);
+                if !visited.insert(Self::classify_ident(&arg.ident)) {
+                    return syn_err(
+                        &arg.ident,
+                        "syntaxfmt found duplicate or conflicting attribute argument",
+                    );
+                }
+                match arg.kind {
+                    Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
+                    Kind::EvalTypePath(i) => self.eval = Eval::from_type_path(i)?,
+                    Kind::EvalClosure(i) => self.eval = Eval::from_closure(i)?,
+                    Kind::State(i) => self.state = Some(i),
+                    Kind::StateBound(i) => self.state_bound = Some(i),
+                    Kind::Skip(_) => self.skip = true,
+                    _ => unreachable!("match_args should have matched all possibilities"),
+                }
+            } else {
+                i += 1;
             }
         }
 
@@ -253,19 +265,25 @@ impl TakeArgs for FieldArgsNormal {
 
         use UnverifiedArgKind as Kind;
         let mut visited = HashSet::new();
-        for arg in args.args.extract_if(.., Self::match_args) {
-            if !visited.insert(Self::classify_ident(&arg.ident)) {
-                return syn_err(
-                    &arg.ident,
-                    "syntaxfmt found duplicate or conflicting attribute argument",
-                );
-            }
-            match arg.kind {
-                Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
-                Kind::EvalTypePath(i) => self.eval = Eval::from_type_path(i)?,
-                Kind::EvalClosure(i) => self.eval = Eval::from_closure(i)?,
-                Kind::Skip(_) => self.skip = true,
-                _ => unreachable!("match_args should have matched all possibilities"),
+        let mut i = 0;
+        while i < args.args.len() {
+            if Self::match_args(&mut args.args[i]) {
+                let arg = args.args.remove(i);
+                if !visited.insert(Self::classify_ident(&arg.ident)) {
+                    return syn_err(
+                        &arg.ident,
+                        "syntaxfmt found duplicate or conflicting attribute argument",
+                    );
+                }
+                match arg.kind {
+                    Kind::Eval(i) => self.eval = Eval::from_expr(i)?,
+                    Kind::EvalTypePath(i) => self.eval = Eval::from_type_path(i)?,
+                    Kind::EvalClosure(i) => self.eval = Eval::from_closure(i)?,
+                    Kind::Skip(_) => self.skip = true,
+                    _ => unreachable!("match_args should have matched all possibilities"),
+                }
+            } else {
+                i += 1;
             }
         }
 
@@ -332,16 +350,12 @@ impl TypeArgs {
             type_args.args_else =
                 Some(TypeArgsElse::default().take_args(&mut args_else, have_eval)?);
         }
-        type_args
-            .args
-            .state
-            .as_ref()
-            .inspect(|t| Self::type_path_lifetimes(&mut type_args.lifetimes, t));
-        type_args
-            .args
-            .state_bound
-            .as_ref()
-            .inspect(|t| Self::trait_obj_lifetimes(&mut type_args.lifetimes, t));
+        if let Some(t) = type_args.args.state.as_ref() {
+            Self::type_path_lifetimes(&mut type_args.lifetimes, t);
+        }
+        if let Some(t) = type_args.args.state_bound.as_ref() {
+            Self::trait_obj_lifetimes(&mut type_args.lifetimes, t);
+        }
         Ok(type_args)
     }
 

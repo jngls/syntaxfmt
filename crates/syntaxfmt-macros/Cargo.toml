@@ -1,8 +1,8 @@
 [package]
 name = "syntaxfmt-macros"
 version = "0.2.0"
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
+rust-version = "1.70"
 license = "MIT OR Apache-2.0"
 description = "Procedural macros for the syntaxfmt crate."
 homepage = "https://github.com/jngls/syntaxfmt"
