@@ -67,6 +67,12 @@ impl ToTokens for SyntaxTypeKind {
 #[derive(Debug, Clone)]
 pub struct SyntaxType<'a> {
     pub args: TypeArgs,
+    // Was previously used for pushing type bounds into where
+    // clause, but that created cyclic trait resolution. I'll
+    // keep the vec around for a short while, in case it ends 
+    // up being useful. After another version or two I expect
+    // I'll drop it.
+    #[allow(unused)]
     pub types: Vec<&'a Type>,
     pub kind: SyntaxTypeKind,
     pub generics: &'a Generics,
@@ -146,12 +152,13 @@ impl<'a> SyntaxType<'a> {
         }
 
         // Add SyntaxFmt bounds for all field types
-        for &field_ty in &self.types {
-            let span = field_ty.span();
-            where_clause.predicates.push(
-                syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> },
-            );
-        }
+        // COMMENTED OUT: This creates infinite recursion for recursive types
+        // for &field_ty in &self.types {
+        //     let span = field_ty.span();
+        //     where_clause.predicates.push(
+        //         syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> },
+        //     );
+        // }
 
         // Only include where clause if it has predicates
         let where_clause = (!where_clause.predicates.is_empty()).then_some(where_clause);

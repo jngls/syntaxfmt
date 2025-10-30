@@ -427,17 +427,24 @@
 //! ```
 //!
 //! ## Additional State Examples
-//! 
+//!
 //! - [`SyntaxFormatter::state`]
 //! - [`SyntaxFormatter::state_mut`]
 //! - [`SyntaxFormatter::map_state`]
 //! - [`SyntaxFormatter::map_state_mut`]
 //!
+//! # Putting it all Together
+//!
+//! For a comprehensive example demonstrating nested structs, enums, indentation, newlines,
+//! and stateful formatting with all attribute args (`eval`, `cont`, `pre`, `suf`, `delim`,
+//! `eval_with`, `cont_with`, `state`, `bound`, etc.), see the
+//! [examples directory](https://github.com/jngls/syntaxfmt/tree/main/examples).
+//!
 //! # Reference
 //!
 //! ## Attribute Summary
 //!
-//! Attributes can be applied at the type level or field level. Most have short and long forms.
+//! Attributes can be applied at the type level or field level.
 //!
 //! | Argument | Description | Field / Type / Else |
 //! |----------|-------------|---------------------|
@@ -489,6 +496,7 @@ use core::panic;
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
+use std::marker::PhantomData;
 
 pub use syntaxfmt_macros::SyntaxFmt;
 
@@ -1030,6 +1038,12 @@ pub fn syntax_fmt<'e, E>(elem: &'e E) -> SyntaxDisplay<'static, 'e, (), E> {
 pub trait SyntaxFmt<S> {
     /// Formats this value using the given context.
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult;
+}
+
+impl<S, T> SyntaxFmt<S> for PhantomData<T> {
+    fn syntax_fmt(&self, _ctx: &mut SyntaxFormatter<S>) -> FmtResult {
+        Ok(())
+    }
 }
 
 // Implement SyntaxFmt for common primitive types
