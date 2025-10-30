@@ -861,3 +861,84 @@ fn test_immutable_context_mut_access_panics() {
     let s = Bad { name: "test" };
     let _ = format!("{}", syntax_fmt(&s).state(&counter));
 }
+
+// =============================================================================
+// recursive types
+// =============================================================================
+
+// These tests mainly ensure the type compiles without infinite trait resolution
+// The failure case is actually that compiling fails, either by hanging, or by
+// emitting `error[E0275]: overflow evaluating the requirement`
+
+trait DummyBound {}
+struct DummyState;
+impl DummyBound for DummyState {}
+
+#[derive(SyntaxFmtDerive)]
+struct BasicRecursive<'a> {
+    recursive: Box<BasicRecursive<'a>>,
+    _marker: PhantomData<&'a i32>,
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = DummyBound)]
+struct MutualRecursiveA<'a> {
+    b: MutualRecursiveB<'a>,
+    _marker: PhantomData<&'a i32>,
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = DummyBound)]
+struct MutualRecursiveB<'a> {
+    a: Vec<MutualRecursiveA<'a>>,
+    _marker: PhantomData<&'a i32>,
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = DummyBound)]
+enum MutualRecursiveEnumA<'a> {
+    B(MutualRecursiveEnumB<'a>, PhantomData<&'a i32>),
+    End,
+}
+
+#[derive(SyntaxFmtDerive)]
+#[syntax(bound = DummyBound)]
+struct MutualRecursiveEnumB<'a> {
+    a: Vec<MutualRecursiveEnumA<'a>>,
+}
+
+#[test]
+fn test_basic_recursion_struct() {
+    // This would trigger infinite trait resolution if there's an issue with generated code bounds
+    let state = DummyState;
+    let a = MutualRecursiveA {
+        b: MutualRecursiveB {
+            a: vec![],
+            _marker: PhantomData,
+        },
+        _marker: PhantomData,
+    };
+    let _ = format!("{}", syntax_fmt(&a).state(&state));
+}
+
+#[test]
+fn test_mutual_recursion_struct() {
+    // This would trigger infinite trait resolution if there's an issue with generated code bounds
+    let state = DummyState;
+    let a = MutualRecursiveA {
+        b: MutualRecursiveB {
+            a: vec![],
+            _marker: PhantomData,
+        },
+        _marker: PhantomData,
+    };
+    let _ = format!("{}", syntax_fmt(&a).state(&state));
+}
+
+#[test]
+fn test_mutual_recursion_enum() {
+    // This would trigger infinite trait resolution if there's an issue with generated code bounds
+    let state = DummyState;
+    let b = MutualRecursiveEnumB { a: vec![MutualRecursiveEnumA::End] };
+    let _ = format!("{}", syntax_fmt(&b).state(&state));
+}
