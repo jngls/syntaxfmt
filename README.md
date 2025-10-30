@@ -93,9 +93,28 @@ assert_eq!(format!("{}", syntax_fmt(&call)), "max(x, y, z)");
 assert_eq!(format!("{}", syntax_fmt(&call).pretty()), "max( x,  y,  z )");
 ```
 
-### Further Reading
+### Further Reading and More Examples
 
 For complete documentation including many more examples, visit [docs.rs/syntaxfmt](https://docs.rs/syntaxfmt).
+
+## Attribute Summary
+
+Attributes can be applied at the type level or field level. Most have short and long forms.
+
+| Argument | Description | Field / Type / Else |
+|----------|-------------|---------------------|
+| `pre` | Text before content | field/type/else |
+| `suf` | Text after content | field/type/else |
+| `delim` | Separator between collection elements | field/type/else |
+| `cont` | Literal replacement for field value | field/type/else |
+| `cont_with` | Custom formatter function/closure | field/type/else |
+| `eval` | Conditional expression | field/type |
+| `eval_with` | Conditional function/closure | field/type |
+| `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
+| `ind` | Increase indent level for field content | field/type/else |
+| `skip` | Omit field from formatting | field/type |
+| `state` | Specify state type (type-level only) | type |
+| `bound` | Add trait bound to state (type-level only) | type |
 
 ## Contributing
 
