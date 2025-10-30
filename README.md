@@ -99,10 +99,10 @@ For complete documentation including many more examples, visit [docs.rs/syntaxfm
 
 ## Attribute Summary
 
-Attributes can be applied at the type level or field level. Most have short and long forms.
+Attributes can be applied at the type level or field level.
 
-| Argument | Description | Field / Type / Else |
-|----------|-------------|---------------------|
+| Argument | Description | Valid Attribute Locations |
+|----------|-------------|---------------------------|
 | `pre` | Text before content | field/type/else |
 | `suf` | Text after content | field/type/else |
 | `delim` | Separator between collection elements | field/type/else |
