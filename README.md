@@ -28,7 +28,7 @@ Add `syntaxfmt` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-syntaxfmt = "0.2.0"
+syntaxfmt = "0.2.1"
 ```
 
 ### Quick Start
