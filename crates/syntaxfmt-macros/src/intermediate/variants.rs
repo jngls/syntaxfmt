@@ -1,11 +1,11 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote, quote_spanned};
+use quote::{ToTokens, quote};
 use syn::{Ident, Result as SynResult, Type, Variant, punctuated::Punctuated, token::Comma};
 
 use crate::{
     attributes::{
         args::FieldArgs,
-        content::{Content, Skipped, ToConditionalTokens},
+        content::{Content, FieldKind, Skipped, ToConditionalTokens},
     },
     intermediate::fields::{SyntaxFields, SyntaxFieldsDecl},
 };
@@ -15,12 +15,10 @@ pub struct SyntaxVariantDecl(Ident, SyntaxFieldsDecl);
 
 impl ToTokens for SyntaxVariantDecl {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let span = self.0.span();
-
         let name = &self.0;
         let fields_decl = &self.1;
 
-        tokens.extend(quote_spanned! { span => Self::#name #fields_decl });
+        tokens.extend(quote! { Self::#name #fields_decl });
     }
 }
 
@@ -50,16 +48,15 @@ impl ToTokens for SyntaxVariant {
             return;
         }
 
-        let span = self.name.span();
         let decl = self.decl();
 
         let default_content = Content::Tokens(self.fields.to_token_stream());
 
         let content = self
             .args
-            .to_conditional_tokens(&quote! { self }, &default_content);
+            .to_conditional_tokens(FieldKind::SelfValue, &default_content);
 
-        tokens.extend(quote_spanned! { span => #decl => { #content }});
+        tokens.extend(quote! { #decl => { #content }});
     }
 }
 

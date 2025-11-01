@@ -444,10 +444,10 @@
 //!
 //! ## Attribute Summary
 //!
-//! Attributes can be applied at the type level or field level.
+//! Attributes can be applied at the type, field, or `syntax_else` level.
 //!
-//! | Argument | Description | Field / Type / Else |
-//! |----------|-------------|---------------------|
+//! | Argument | Description | Valid Location |
+//! |----------|-------------|----------------|
 //! | `pre` | Text before content | field/type/else |
 //! | `suf` | Text after content | field/type/else |
 //! | `delim` | Separator between collection elements | field/type/else |

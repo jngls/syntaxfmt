@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
-use syn::{Expr, ExprClosure, Result as SynResult, TypePath};
+use syn::{Expr, ExprClosure, Ident, Result as SynResult, TypePath};
 
 use crate::{
     attributes::{args::CommonArgs, delims::PopDelims, eval::Eval, pretty::PopIndentRegion},
@@ -29,15 +29,30 @@ pub trait WithConditional {
     fn conditional(&self) -> (&Self::Normal, &Option<Self::Else>);
 }
 
+#[derive(Debug, Clone)]
+pub enum FieldKind {
+    SelfValue,
+    Field(Ident),
+}
+
+impl ToTokens for FieldKind {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            FieldKind::SelfValue => tokens.extend(quote! { self }),
+            FieldKind::Field(ident) => ident.to_tokens(tokens),
+        }
+    }
+}
+
 pub trait ToContentTokens {
-    fn to_content_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2;
+    fn to_content_tokens(&self, field_kind: FieldKind, default_content: &Content) -> TokenStream2;
 }
 
 impl<T> ToContentTokens for T
 where
     T: WithCommon,
 {
-    fn to_content_tokens(&self, field: &impl ToTokens, default_content: &Content) -> TokenStream2 {
+    fn to_content_tokens(&self, field_kind: FieldKind, default_content: &Content) -> TokenStream2 {
         let common = self.common();
 
         let prefix = &common.prefix;
@@ -53,7 +68,7 @@ where
             .content
             .as_ref()
             .unwrap_or(&default_content)
-            .to_tokens(field);
+            .to_tokens(&field_kind);
 
         let (push_indent, pop_indent) = if let Some(indent) = &common.indent {
             (Some(indent), Some(PopIndentRegion))
@@ -78,7 +93,7 @@ where
 pub trait ToConditionalTokens {
     fn to_conditional_tokens(
         &self,
-        field: &impl ToTokens,
+        field_kind: FieldKind,
         default_content: &Content,
     ) -> TokenStream2;
 }
@@ -91,17 +106,17 @@ where
 {
     fn to_conditional_tokens(
         &self,
-        field: &impl ToTokens,
+        field_kind: FieldKind,
         default_content: &Content,
     ) -> TokenStream2 {
         let (args, args_else) = self.conditional();
 
-        let content = args.to_content_tokens(field, default_content);
+        let content = args.to_content_tokens(field_kind.clone(), default_content);
         let content_else = args_else
             .as_ref()
-            .map(|a| a.to_content_tokens(field, default_content));
+            .map(|a| a.to_content_tokens(field_kind.clone(), default_content));
 
-        let eval = args.eval().as_ref().map(|e| e.to_tokens(field));
+        let eval = args.eval().as_ref().map(|e| e.to_tokens(&field_kind));
 
         match (eval, content_else) {
             (Some(eval), Some(content_else)) => quote! {

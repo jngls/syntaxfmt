@@ -28,7 +28,7 @@ Add `syntaxfmt` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-syntaxfmt = "0.2.1"
+syntaxfmt = "0.2.2"
 ```
 
 ### Quick Start
@@ -69,7 +69,7 @@ let stmt = LetStatement { name: "x", value: "42" };
 assert_eq!(format!("{}", syntax_fmt(&stmt)), "let x = 42;");
 ```
 
-### Pretty Printing
+### Basic Pretty Printing
 
 Enable pretty printing with the `.pretty()` method. Use modal attributes (arrays) to specify different formatting for normal vs pretty mode:
 
@@ -93,16 +93,18 @@ assert_eq!(format!("{}", syntax_fmt(&call)), "max(x, y, z)");
 assert_eq!(format!("{}", syntax_fmt(&call).pretty()), "max( x,  y,  z )");
 ```
 
+More advanced pretty printing is available via [Indentation and Layout](https://docs.rs/syntaxfmt/latest/syntaxfmt/#indentation-and-layout).
+
 ### Further Reading and More Examples
 
 For complete documentation including many more examples, visit [docs.rs/syntaxfmt](https://docs.rs/syntaxfmt).
 
 ## Attribute Summary
 
-Attributes can be applied at the type level or field level.
+Attributes can be applied at the type, field, or `syntax_else` level.
 
-| Argument | Description | Valid Attribute Locations |
-|----------|-------------|---------------------------|
+| Argument | Description | Valid Location |
+|----------|-------------|----------------|
 | `pre` | Text before content | field/type/else |
 | `suf` | Text after content | field/type/else |
 | `delim` | Separator between collection elements | field/type/else |
