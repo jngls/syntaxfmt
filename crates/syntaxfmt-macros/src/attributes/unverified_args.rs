@@ -17,7 +17,7 @@ pub enum UnverifiedArgKind {
     Newlines(Punctuated<Ident, Comma>),
     Prefix(Punctuated<LitStr, Comma>),
     Suffix(Punctuated<LitStr, Comma>),
-    Delims(Punctuated<LitStr, Comma>),
+    Seps(Punctuated<LitStr, Comma>),
     Eval(Expr),
     EvalTypePath(TypePath),
     EvalClosure(ExprClosure),
@@ -36,7 +36,7 @@ impl ToTokens for UnverifiedArgKind {
             Self::Newlines(i) => i.to_tokens(tokens),
             Self::Prefix(i) => i.to_tokens(tokens),
             Self::Suffix(i) => i.to_tokens(tokens),
-            Self::Delims(i) => i.to_tokens(tokens),
+            Self::Seps(i) => i.to_tokens(tokens),
             Self::Eval(i) => i.to_tokens(tokens),
             Self::EvalTypePath(i) => i.to_tokens(tokens),
             Self::EvalClosure(i) => i.to_tokens(tokens),
@@ -169,12 +169,12 @@ impl Parse for UnverifiedArgs {
                     ident,
                     kind: UnverifiedArgKind::Suffix(strs),
                 });
-            } else if ident == "delim" {
+            } else if ident == "sep" {
                 input.parse::<SynEq>()?;
                 let strs = Self::parse_litstrs(&mut input)?;
                 attrs.push(UnverifiedArg {
                     ident,
-                    kind: UnverifiedArgKind::Delims(strs),
+                    kind: UnverifiedArgKind::Seps(strs),
                 });
             } else if ident == "eval" {
                 input.parse::<SynEq>()?;

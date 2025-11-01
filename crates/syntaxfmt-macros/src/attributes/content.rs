@@ -5,7 +5,7 @@ use quote::{ToTokens, quote};
 use syn::{Expr, ExprClosure, Ident, Result as SynResult, TypePath};
 
 use crate::{
-    attributes::{args::CommonArgs, delims::PopDelims, eval::Eval, pretty::PopIndentRegion},
+    attributes::{args::CommonArgs, seps::PopSeps, eval::Eval, pretty::PopIndentRegion},
     syn_err,
 };
 
@@ -58,8 +58,8 @@ where
         let prefix = &common.prefix;
         let suffix = &common.suffix;
 
-        let (push_delims, pop_delims) = if let Some(delims) = &common.delims {
-            (Some(delims), Some(PopDelims))
+        let (push_seps, pop_seps) = if let Some(seps) = &common.seps {
+            (Some(seps), Some(PopSeps))
         } else {
             Default::default()
         };
@@ -83,8 +83,8 @@ where
 
         // Push and pop indent has to be in non-symmetric location
         // This is because indenting is non-symmetric
-        let pre = quote! { #nl_begin #prefix #push_indent #nl_prefix #push_delims };
-        let post = quote! { #pop_delims #pop_indent #nl_content #suffix #nl_suffix };
+        let pre = quote! { #nl_begin #prefix #push_indent #nl_prefix #push_seps };
+        let post = quote! { #pop_seps #pop_indent #nl_content #suffix #nl_suffix };
 
         quote! { #pre #content #post }
     }

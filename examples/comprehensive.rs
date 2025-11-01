@@ -48,7 +48,7 @@ enum Expr<'src> {
 struct FunctionCall<'src> {
     name: &'src str,
 
-    #[syntax(pre = "(", suf = ")", delim = [", ", ", "])]
+    #[syntax(pre = "(", suf = ")", sep = [", ", ", "])]
     args: Vec<Expr<'src>>,
 }
 
@@ -94,7 +94,7 @@ enum Statement<'src> {
 #[derive(SyntaxFmt)]
 #[syntax(pre = "{", suf = "}", bound = TypeDisplay)]
 struct Block<'src> {
-    #[syntax(nl = [cont], ind, delim = "")]
+    #[syntax(nl = [cont], ind, sep = "")]
     statements: Vec<Statement<'src>>,
 }
 
@@ -104,7 +104,7 @@ struct Block<'src> {
 struct Function<'src> {
     name: &'src str,
 
-    #[syntax(pre = "(", suf = ")", delim = [", ", ", "])]
+    #[syntax(pre = "(", suf = ")", sep = [", ", ", "])]
     params: Vec<Parameter<'src>>,
 
     #[syntax(pre = " -> ", eval = return_type.is_some())]

@@ -335,64 +335,64 @@ fn test_outer_content_modal_slice() {
 }
 
 // =============================================================================
-// delim
+// sep
 // =============================================================================
 
 #[derive(SyntaxFmtDerive)]
-struct DelimItem(&'static str);
+struct SepItem(&'static str);
 
 #[derive(SyntaxFmtDerive)]
-struct WithDefaultDelim {
-    items: Vec<DelimItem>,
+struct WithDefaultSep {
+    items: Vec<SepItem>,
 }
 
 #[test]
-fn test_default_delim() {
-    let s = WithDefaultDelim {
-        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+fn test_default_sep() {
+    let s = WithDefaultSep {
+        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
     };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a,b,c");
 }
 
 #[derive(SyntaxFmtDerive)]
-struct WithDelim {
-    #[syntax(delim = "|")]
-    items: Vec<DelimItem>,
+struct WithSep {
+    #[syntax(sep = "|")]
+    items: Vec<SepItem>,
 }
 
 #[test]
-fn test_delim() {
-    let s = WithDelim {
-        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+fn test_sep() {
+    let s = WithSep {
+        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
     };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a|b|c");
 }
 
 #[derive(SyntaxFmtDerive)]
-struct WithModalDelim {
-    #[syntax(delim = [":", ": "])]
-    items: Vec<DelimItem>,
+struct WithModalSep {
+    #[syntax(sep = [":", ": "])]
+    items: Vec<SepItem>,
 }
 
 #[test]
-fn test_modal_delim() {
-    let s = WithModalDelim {
-        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+fn test_modal_sep() {
+    let s = WithModalSep {
+        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
     };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a:b:c");
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "a: b: c");
 }
 
 #[derive(SyntaxFmtDerive)]
-#[syntax(delim = "|")]
-struct WithOuterDelim {
-    items: Vec<DelimItem>,
+#[syntax(sep = "|")]
+struct WithOuterSep {
+    items: Vec<SepItem>,
 }
 
 #[test]
-fn test_outer_delim() {
-    let s = WithOuterDelim {
-        items: vec![DelimItem("a"), DelimItem("b"), DelimItem("c")],
+fn test_outer_sep() {
+    let s = WithOuterSep {
+        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
     };
     assert_eq!(format!("{}", syntax_fmt(&s)), "a|b|c");
 }

@@ -11,7 +11,7 @@ A derive macro-based library for flexible syntax tree formatting with pretty pri
 ## Features
 
 - **Derive Macro** - Automatic implementation via `#[derive(SyntaxFmt)]`
-- **Flexible Decorations** - Add prefixes, suffixes, and collection delimiters
+- **Flexible Decorations** - Add prefixes, suffixes, and collection separators
 - **Modal Formatting** - Customise formatting output for different modes, normal and pretty
 - **Automatic Layout** - Automated layout control with newlines and indentation
 - **Content Replacement** - Override field formatting with literals or custom functions
@@ -80,7 +80,7 @@ use syntaxfmt::{SyntaxFmt, syntax_fmt};
 struct FunctionCall<'src> {
     name: &'src str,
 
-    #[syntax(pre = ["(", "( "], suf = [")", " )"], delim = [", ", ",  "])]
+    #[syntax(pre = ["(", "( "], suf = [")", " )"], sep = [", ", ",  "])]
     args: Vec<&'src str>,
 }
 
@@ -107,7 +107,7 @@ Attributes can be applied at the type, field, or `syntax_else` level.
 |----------|-------------|----------------|
 | `pre` | Text before content | field/type/else |
 | `suf` | Text after content | field/type/else |
-| `delim` | Separator between collection elements | field/type/else |
+| `sep` | Separator between collection elements | field/type/else |
 | `cont` | Literal replacement for field value | field/type/else |
 | `cont_with` | Custom formatter function/closure | field/type/else |
 | `eval` | Conditional expression | field/type |
