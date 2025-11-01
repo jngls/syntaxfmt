@@ -176,6 +176,8 @@ impl Parse for UnverifiedArgs {
                     ident,
                     kind: UnverifiedArgKind::Seps(strs),
                 });
+            } else if ident == "delim" {
+                return syn_err(&ident, "syntaxfmt `delim` has been replaced by `sep`. Please replace your references. Usage is the same.");
             } else if ident == "eval" {
                 input.parse::<SynEq>()?;
                 let expr = input.parse::<Expr>()?;
