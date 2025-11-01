@@ -1,16 +1,16 @@
 use std::{collections::HashSet, mem::take};
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote, quote_spanned};
+use quote::{ToTokens, quote};
 use syn::{
     Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult, Type,
-    WhereClause, parse_quote_spanned, punctuated::Punctuated, spanned::Spanned, token::Where,
+    WhereClause, parse_quote, punctuated::Punctuated, token::Where,
 };
 
 use crate::{
     attributes::{
         args::TypeArgs,
-        content::{Content, Skipped, ToConditionalTokens},
+        content::{Content, FieldKind, Skipped, ToConditionalTokens},
     },
     intermediate::{fields::SyntaxFields, variants::SyntaxVariants},
     syn_err,
@@ -45,14 +45,12 @@ impl ToTokens for SyntaxTypeKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Self::Struct(inner) => {
-                let span = inner.span();
                 let decl = inner.decl();
-                tokens.extend(quote_spanned! { span => let Self #decl = self; });
+                tokens.extend(quote! { let Self #decl = self; });
                 inner.to_tokens(tokens);
             }
             Self::Enum(inner) => {
-                let span = inner.span();
-                tokens.extend(quote_spanned! { span =>
+                tokens.extend(quote! {
                     #[allow(unreachable_patterns)]
                     match self {
                         #inner
@@ -128,7 +126,6 @@ impl<'a> SyntaxType<'a> {
             .collect();
 
         // Add lifetimes from attributes (e.g., from state or bound), but only if they don't already exist
-        let span = impl_generics.span();
         let new_lifetimes = self
             .args
             .lifetimes
@@ -140,15 +137,14 @@ impl<'a> SyntaxType<'a> {
 
         // Add state type parameter if not explicitly provided by user
         if self.args.args.state.is_none() {
-            impl_generics.push(parse_quote_spanned!(span => #state ));
+            impl_generics.push(parse_quote!(#state ));
         }
 
         // Add state bound to where clause if specified
         if let Some(bound) = &self.args.args.state_bound {
-            let span = bound.span();
             where_clause
                 .predicates
-                .push(syn::parse_quote_spanned! {span => #state: #bound });
+                .push(syn::parse_quote! {#state: #bound });
         }
 
         // Add SyntaxFmt bounds for all field types
@@ -156,7 +152,7 @@ impl<'a> SyntaxType<'a> {
         // for &field_ty in &self.types {
         //     let span = field_ty.span();
         //     where_clause.predicates.push(
-        //         syn::parse_quote_spanned! { span => #field_ty: ::syntaxfmt::SyntaxFmt<#state> },
+        //         syn::parse_quote! { #field_ty: ::syntaxfmt::SyntaxFmt<#state> },
         //     );
         // }
 
@@ -175,7 +171,6 @@ impl<'a> SyntaxType<'a> {
 impl<'a> ToTokens for SyntaxType<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let name = self.name;
-        let span = self.name.span();
 
         let (state, impl_gen, ty_gen, where_clause) = self.split_generics();
 
@@ -183,12 +178,12 @@ impl<'a> ToTokens for SyntaxType<'a> {
 
         let content = if !self.args.skipped() {
             self.args
-                .to_conditional_tokens(&quote! { self }, &default_content)
+                .to_conditional_tokens(FieldKind::SelfValue, &default_content)
         } else {
             TokenStream2::new()
         };
 
-        tokens.extend(quote_spanned! { span =>
+        tokens.extend(quote! {
             impl <#impl_gen> ::syntaxfmt::SyntaxFmt<#state> for #name<#ty_gen> #where_clause {
                 fn syntax_fmt(&self, f: &mut ::syntaxfmt::SyntaxFormatter<#state>) -> ::std::fmt::Result {
                     #content

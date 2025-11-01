@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote_spanned};
+use quote::{ToTokens, quote};
 use syn::{
     Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Result as SynResult, Type,
     punctuated::Punctuated, spanned::Spanned, token::Comma,
@@ -7,7 +7,7 @@ use syn::{
 
 use crate::attributes::{
     args::FieldArgs,
-    content::{Content, Skipped, ToConditionalTokens},
+    content::{Content, FieldKind, Skipped, ToConditionalTokens},
 };
 
 #[derive(Debug, Clone)]
@@ -42,12 +42,11 @@ impl ToTokens for SyntaxFieldNamed {
             return;
         }
 
-        let span = self.name.span();
         let name = &self.name;
 
-        let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
+        let default_content = Content::Tokens(quote! { #name.syntax_fmt(f)?; });
 
-        let content = self.args.to_conditional_tokens(name, &default_content);
+        let content = self.args.to_conditional_tokens(FieldKind::Field(name.clone()), &default_content);
 
         tokens.extend(content);
     }
@@ -88,12 +87,11 @@ impl ToTokens for SyntaxFieldUnnamed {
             return;
         }
 
-        let span = self.name.span();
         let name = &self.name;
 
-        let default_content = Content::Tokens(quote_spanned! { span => #name.syntax_fmt(f)?; });
+        let default_content = Content::Tokens(quote! { #name.syntax_fmt(f)?; });
 
-        let content = self.args.to_conditional_tokens(name, &default_content);
+        let content = self.args.to_conditional_tokens(FieldKind::Field(name.clone()), &default_content);
 
         tokens.extend(content);
     }
@@ -178,16 +176,14 @@ impl ToTokens for SyntaxFieldsDecl {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             SyntaxFieldsDecl::Named(inner) => {
-                let span = inner.span();
                 if inner.is_empty() {
-                    tokens.extend(quote_spanned! { span => { .. } });
+                    tokens.extend(quote! { { .. } });
                 } else {
-                    tokens.extend(quote_spanned! { span => { #inner, .. } });
+                    tokens.extend(quote! { { #inner, .. } });
                 }
             }
             SyntaxFieldsDecl::Unnamed(inner) => {
-                let span = inner.span();
-                tokens.extend(quote_spanned! { span => ( #inner ) });
+                tokens.extend(quote! { ( #inner ) });
             }
             SyntaxFieldsDecl::Unit => {}
         }

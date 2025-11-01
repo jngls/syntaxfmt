@@ -942,3 +942,19 @@ fn test_mutual_recursion_enum() {
     let b = MutualRecursiveEnumB { a: vec![MutualRecursiveEnumA::End] };
     let _ = format!("{}", syntax_fmt(&b).state(&state));
 }
+
+// =============================================================================
+// macro wrapped
+// =============================================================================
+
+// This test mainly ensures the type compiles when wrapped in a macro
+// Had a weird error where self values were getting resolved incorrectly but only in
+// macros - presumably related to macro hygeine.
+
+macro_rules! impl_in_macro {
+    ($name:ident) => {
+        #[derive(SyntaxFmtDerive)]
+        struct $name(i32);
+    };
+}
+impl_in_macro!(InMacro);
