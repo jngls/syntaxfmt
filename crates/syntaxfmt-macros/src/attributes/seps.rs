@@ -5,32 +5,32 @@ use syn::{LitStr, Result as SynResult, punctuated::Punctuated, token::Comma};
 use crate::attributes::modal::Strings;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct PushDelims(pub Strings);
+pub struct PushSeps(pub Strings);
 
-impl PushDelims {
+impl PushSeps {
     pub fn from_litstrs(litstrs: Punctuated<LitStr, Comma>) -> SynResult<Option<Self>> {
         Ok(Some(Self(Strings::from_litstrs(litstrs)?)))
     }
 }
 
-impl ToTokens for PushDelims {
+impl ToTokens for PushSeps {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let strs = &self.0;
-        tokens.extend(quote! { f.push_delim(#strs); });
+        tokens.extend(quote! { f.push_sep(#strs); });
     }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct PopDelims;
+pub struct PopSeps;
 
-impl ToTokens for PopDelims {
+impl ToTokens for PopSeps {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        tokens.extend(quote! { f.pop_delim(); });
+        tokens.extend(quote! { f.pop_sep(); });
     }
 }
 
-impl<'a> From<&'a PushDelims> for PopDelims {
-    fn from(_: &'a PushDelims) -> Self {
+impl<'a> From<&'a PushSeps> for PopSeps {
+    fn from(_: &'a PushSeps) -> Self {
         Self
     }
 }

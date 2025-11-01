@@ -20,7 +20,7 @@ struct Param {
 
 #[derive(SyntaxFmtDerive)]
 struct Block {
-    #[syntax(pre = " {", suf = "}", nl = cont, ind, delim = "")]
+    #[syntax(pre = " {", suf = "}", nl = cont, ind, sep = "")]
     statements: Vec<Statement>,
 }
 
@@ -56,8 +56,8 @@ struct Function {
     #[syntax(pre = "fn ")]
     name: Ident,
 
-    // Parameters with delimiters and wrapping
-    #[syntax(pre = "(", suf = ")", delim = ", ")]
+    // Parameters with separators and wrapping
+    #[syntax(pre = "(", suf = ")", sep = ", ")]
     params: Vec<Param>,
 
     // Optional return type

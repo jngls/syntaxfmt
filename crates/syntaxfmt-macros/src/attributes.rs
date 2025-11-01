@@ -1,6 +1,6 @@
 pub mod args;
 pub mod content;
-pub mod delims;
+pub mod seps;
 pub mod eval;
 pub mod modal;
 pub mod prefix_suffix;

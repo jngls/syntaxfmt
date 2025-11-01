@@ -7,7 +7,7 @@
 //! # Features
 //!
 //! - **Derive Macro** - Automatic implementation via `#[derive(SyntaxFmt)]`
-//! - **Flexible Decorations** - Add prefixes, suffixes, and collection delimiters
+//! - **Flexible Decorations** - Add prefixes, suffixes, and collection separators
 //! - **Modal Formatting** - Customise formatting output for different modes, normal and pretty
 //! - **Automatic Layout** - Automated layout control with newlines and indentation
 //! - **Content Replacement** - Override field formatting with literals or custom functions
@@ -60,12 +60,12 @@
 //! assert_eq!(format!("{}", syntax_fmt(&stmt)), "let x = 42;");
 //! ```
 //!
-//! # Collections and Delimiters
+//! # Collections and Separators
 //!
 //! Collections (`Vec<T>`, `&[T]`, `[T; N]`) are formatted automatically with customizable
-//! delimiters. The default delimiter is `,` for normal mode and `, ` for pretty mode.
-//! 
-//! The `delim` attribute argument can be applied at field, type, or `syntax_else` level.
+//! separators. The default separator is `,` for normal mode and `, ` for pretty mode.
+//!
+//! The `sep` attribute argument can be applied at field, type, or `syntax_else` level.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -75,7 +75,7 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Path<'src> {
-//!     #[syntax(delim = "::")]
+//!     #[syntax(sep = "::")]
 //!     segments: Vec<Ident<'src>>,
 //! }
 //!
@@ -121,7 +121,7 @@
 //! struct FunctionCall<'src> {
 //!     name: &'src str,
 //!
-//!     #[syntax(pre = ["(", "( "], suf = [")", " )"], delim = [", ", ",  "])]
+//!     #[syntax(pre = ["(", "( "], suf = [")", " )"], sep = [", ", ",  "])]
 //!     args: Vec<&'src str>,
 //! }
 //!
@@ -164,7 +164,7 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! struct Block<'src> {
-//!     #[syntax(pre = "{", suf = "}", nl = [pre, cont], ind, delim = "")]
+//!     #[syntax(pre = "{", suf = "}", nl = [pre, cont], ind, sep = "")]
 //!     statements: Vec<Statement<'src>>,
 //! }
 //!
@@ -369,7 +369,7 @@
 //! and its result is `false`.
 //! 
 //! Fallback formatting has a restricted set of accepted attribute arguments:
-//! `pre`, `suf`, `delim`, `cont`, `ind`, and `nl`.
+//! `pre`, `suf`, `sep`, `cont`, `ind`, and `nl`.
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
@@ -436,7 +436,7 @@
 //! # Putting it all Together
 //!
 //! For a comprehensive example demonstrating nested structs, enums, indentation, newlines,
-//! and stateful formatting with all attribute args (`eval`, `cont`, `pre`, `suf`, `delim`,
+//! and stateful formatting with all attribute args (`eval`, `cont`, `pre`, `suf`, `sep`,
 //! `eval_with`, `cont_with`, `state`, `bound`, etc.), see the
 //! [examples directory](https://github.com/jngls/syntaxfmt/tree/main/examples).
 //!
@@ -450,7 +450,7 @@
 //! |----------|-------------|----------------|
 //! | `pre` | Text before content | field/type/else |
 //! | `suf` | Text after content | field/type/else |
-//! | `delim` | Separator between collection elements | field/type/else |
+//! | `sep` | Separator between collection elements | field/type/else |
 //! | `cont` | Literal replacement for field value | field/type/else |
 //! | `cont_with` | Custom formatter function/closure | field/type/else |
 //! | `eval` | Conditional expression | field/type |
@@ -467,7 +467,7 @@
 //!
 //! Examples:
 //! - `pre = ["(", "( "]` - Different prefix for each mode
-//! - `delim = [",", ", "]` - Different delimiter for each mode
+//! - `sep = [",", ", "]` - Different separator for each mode
 //!
 //! ## Built in Implementations
 //!
@@ -570,7 +570,7 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     newline: Strs,
     single_indent: Strs,
     indent: Strings,
-    delim_stack: Vec<Strs>,
+    sep_stack: Vec<Strs>,
 }
 
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
@@ -590,7 +590,7 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
             newline,
             single_indent: indent,
             indent: Default::default(),
-            delim_stack: Vec::new(),
+            sep_stack: Vec::new(),
         }
     }
 
@@ -843,24 +843,24 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         write!(self.f, "{newline}{indent}")
     }
 
-    /// Pushes a new delimiter set onto the delimiter stack.
+    /// Pushes a new separator set onto the separator stack.
     #[inline]
-    pub fn push_delim(&mut self, delim: Strs) {
-        self.delim_stack.push(delim);
+    pub fn push_sep(&mut self, sep: Strs) {
+        self.sep_stack.push(sep);
     }
 
-    /// Pops the top delimiter set from the delimiter stack.
+    /// Pops the top separator set from the separator stack.
     #[inline]
-    pub fn pop_delim(&mut self) {
-        self.delim_stack.pop();
+    pub fn pop_sep(&mut self) {
+        self.sep_stack.pop();
     }
 
-    /// Writes the current delimiter to the output based on current mode.
+    /// Writes the current separator to the output based on current mode.
     #[inline]
-    pub fn write_delim(&mut self) -> FmtResult {
-        let delim = self.delim_stack.last().copied();
-        let delim = delim.unwrap_or([",", ", "]);
-        write!(self.f, "{}", delim[self.imode()])
+    pub fn write_sep(&mut self) -> FmtResult {
+        let sep = self.sep_stack.last().copied();
+        let sep = sep.unwrap_or([",", ", "]);
+        write!(self.f, "{}", sep[self.imode()])
     }
 }
 
@@ -1093,7 +1093,7 @@ where
     fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
         for (i, elem) in self.iter().enumerate() {
             if i > 0 {
-                f.write_delim()?;
+                f.write_sep()?;
             }
             elem.syntax_fmt(f)?;
         }
@@ -1181,7 +1181,7 @@ macro_rules! impl_syntax_fmt_tuple {
             fn syntax_fmt(&self, f: &mut SyntaxFormatter<S>) -> FmtResult {
                 $(
                     if $idx > 0 {
-                        f.write_delim()?;
+                        f.write_sep()?;
                     }
                     self.$idx.syntax_fmt(f)?;
                 )+

@@ -8,7 +8,7 @@ use syn::{
 use crate::{
     attributes::{
         content::{Content, Skipped, WithCommon, WithConditional, WithEval},
-        delims::PushDelims,
+        seps::PushSeps,
         eval::Eval,
         prefix_suffix::{Prefix, Suffix},
         pretty::{Newlines, PushIndentRegion},
@@ -23,7 +23,7 @@ pub enum ArgType {
     Newline,
     Prefix,
     Suffix,
-    Delim,
+    Sep,
     Eval,
     Cont,
     Bound,
@@ -44,7 +44,7 @@ pub trait TakeArgs: Sized {
             "nl" => ArgType::Newline,
             "pre" => ArgType::Prefix,
             "suf" => ArgType::Suffix,
-            "delim" => ArgType::Delim,
+            "sep" => ArgType::Sep,
             "eval" | "eval_with" => ArgType::Eval,
             "cont" | "cont_with" => ArgType::Cont,
             "bound" => ArgType::Bound,
@@ -59,7 +59,7 @@ pub trait TakeArgs: Sized {
 pub struct CommonArgs {
     pub prefix: Option<Prefix>,
     pub suffix: Option<Suffix>,
-    pub delims: Option<PushDelims>,
+    pub seps: Option<PushSeps>,
     pub content: Option<Content>,
     pub indent: Option<PushIndentRegion>,
     pub nl: Newlines,
@@ -74,7 +74,7 @@ impl CommonArgs {
             Indent(_)
                 | Prefix(_)
                 | Suffix(_)
-                | Delims(_)
+                | Seps(_)
                 | Content(_)
                 | ContentTypePath(_)
                 | ContentClosure(_)
@@ -100,7 +100,7 @@ impl TakeArgs for CommonArgs {
                 match arg.kind {
                     Kind::Prefix(i) => self.prefix = Prefix::from_litstrs(i)?,
                     Kind::Suffix(i) => self.suffix = Suffix::from_litstrs(i)?,
-                    Kind::Delims(i) => self.delims = PushDelims::from_litstrs(i)?,
+                    Kind::Seps(i) => self.seps = PushSeps::from_litstrs(i)?,
                     Kind::Content(i) => self.content = Content::from_expr(i)?,
                     Kind::ContentTypePath(i) => self.content = Content::from_type_path(i)?,
                     Kind::ContentClosure(i) => self.content = Content::from_closure(i)?,
