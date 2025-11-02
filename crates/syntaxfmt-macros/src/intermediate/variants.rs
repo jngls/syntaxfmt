@@ -1,11 +1,12 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote};
-use syn::{Ident, Result as SynResult, Type, Variant, punctuated::Punctuated, token::Comma};
+use quote::{quote, ToTokens};
+use syn::{punctuated::Punctuated, token::Comma, Ident, Result as SynResult, Variant};
 
 use crate::{
     attributes::{
-        args::FieldArgs,
-        content::{Content, FieldKind, Skipped, ToConditionalTokens},
+        args::{CommonArgs, FieldArgs},
+        content::{Content, Skipped, ToConditionalTokens},
+        context::FieldKind,
     },
     intermediate::fields::{SyntaxFields, SyntaxFieldsDecl},
 };
@@ -30,10 +31,10 @@ pub struct SyntaxVariant {
 }
 
 impl SyntaxVariant {
-    pub fn from_variant<'a>(types: &mut Vec<&'a Type>, input: &'a Variant) -> SynResult<Self> {
-        let args = FieldArgs::from_attributes(&input.attrs)?;
-        let fields = SyntaxFields::from_fields(types, &input.fields)?;
+    pub fn from_variant(parent_common: &CommonArgs, input: &Variant) -> SynResult<Self> {
         let name = input.ident.clone();
+        let args = FieldArgs::new(FieldKind::SelfValue, parent_common, &input.attrs)?;
+        let fields = SyntaxFields::from_fields(&args.args.common, &input.fields)?;
         Ok(Self { args, fields, name })
     }
 
@@ -52,9 +53,7 @@ impl ToTokens for SyntaxVariant {
 
         let default_content = Content::Tokens(self.fields.to_token_stream());
 
-        let content = self
-            .args
-            .to_conditional_tokens(FieldKind::SelfValue, &default_content);
+        let content = self.args.to_conditional_tokens(&default_content);
 
         tokens.extend(quote! { #decl => { #content }});
     }
@@ -66,13 +65,13 @@ pub struct SyntaxVariants {
 }
 
 impl SyntaxVariants {
-    pub fn from_variants<'a>(
-        types: &mut Vec<&'a Type>,
-        input: &'a Punctuated<Variant, Comma>,
+    pub fn from_variants(
+        parent_common: &CommonArgs,
+        input: &Punctuated<Variant, Comma>,
     ) -> SynResult<Self> {
         let mut variants = Vec::new();
         for variant in input {
-            variants.push(SyntaxVariant::from_variant(types, variant)?);
+            variants.push(SyntaxVariant::from_variant(parent_common, variant)?);
         }
         Ok(Self { variants })
     }

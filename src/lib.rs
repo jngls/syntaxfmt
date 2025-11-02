@@ -562,6 +562,12 @@ impl<'s, S> StateRef<'s, S> {
     }
 }
 
+struct Context {
+    sep: Strs,
+    indent: bool,
+    nl_sep: bool,
+}
+
 /// Context passed to formatting implementations, containing the formatter and formatting state.
 pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     f: &'f mut Formatter<'w>,
@@ -570,7 +576,7 @@ pub struct SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     newline: Strs,
     single_indent: Strs,
     indent: Strings,
-    sep_stack: Vec<Strs>,
+    context: Vec<Context>,
 }
 
 impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
@@ -590,7 +596,7 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
             newline,
             single_indent: indent,
             indent: Default::default(),
-            sep_stack: Vec::new(),
+            context: Vec::new(),
         }
     }
 
@@ -821,18 +827,25 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         write!(self.f, "{}", strs[self.imode()])
     }
 
-    /// Increases the indentation level by one.
+    /// Pushes contextual information to the stack.
     #[inline]
-    pub fn push_indent(&mut self) {
-        (0..NUM_MODES).for_each(|i| self.indent[i].push_str(self.single_indent[i]));
+    pub fn push_context(&mut self, sep: Strs, indent: bool, nl_sep: bool) {
+        self.context.push(Context { sep, indent, nl_sep });
+        if indent {
+            (0..NUM_MODES).for_each(|i| self.indent[i].push_str(self.single_indent[i]));
+        }
     }
 
-    /// Decreases the indentation level by one.
+    /// Pops contextual information from the stack.
     #[inline]
-    pub fn pop_indent(&mut self) {
-        (0..NUM_MODES).for_each(|i| {
-            self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len())
-        });
+    pub fn pop_context(&mut self) {
+        if let Some(ctx) = self.context.pop() {
+            if ctx.indent {
+                (0..NUM_MODES).for_each(|i| {
+                    self.indent[i].truncate(self.indent[i].len() - self.single_indent[i].len())
+                });
+            }
+        }
     }
 
     /// Writes newline and current indentation based on current mode.
@@ -843,24 +856,16 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
         write!(self.f, "{newline}{indent}")
     }
 
-    /// Pushes a new separator set onto the separator stack.
-    #[inline]
-    pub fn push_sep(&mut self, sep: Strs) {
-        self.sep_stack.push(sep);
-    }
-
-    /// Pops the top separator set from the separator stack.
-    #[inline]
-    pub fn pop_sep(&mut self) {
-        self.sep_stack.pop();
-    }
-
     /// Writes the current separator to the output based on current mode.
     #[inline]
     pub fn write_sep(&mut self) -> FmtResult {
-        let sep = self.sep_stack.last().copied();
-        let sep = sep.unwrap_or([",", ", "]);
-        write!(self.f, "{}", sep[self.imode()])
+        if let Some(ctx) = self.context.last() {
+            write!(self.f, "{}", ctx.sep[self.imode()])?;
+            if ctx.nl_sep {
+                self.write_newline()?;
+            }
+        }
+        Ok(())
     }
 }
 

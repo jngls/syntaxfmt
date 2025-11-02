@@ -1,16 +1,16 @@
-use std::{collections::HashSet, mem::take};
+use std::collections::HashSet;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use syn::{
-    Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult, Type,
+    Data, DeriveInput, GenericParam, Generics, Ident, LifetimeParam, Result as SynResult,
     WhereClause, parse_quote, punctuated::Punctuated, token::Where,
 };
 
 use crate::{
     attributes::{
-        args::TypeArgs,
-        content::{Content, FieldKind, Skipped, ToConditionalTokens},
+        args::{CommonArgs, TypeArgs},
+        content::{Content, Skipped, ToConditionalTokens},
     },
     intermediate::{fields::SyntaxFields, variants::SyntaxVariants},
     syn_err,
@@ -23,14 +23,14 @@ pub enum SyntaxTypeKind {
 }
 
 impl SyntaxTypeKind {
-    pub fn from_data<'a>(types: &mut Vec<&'a Type>, input: &'a Data) -> SynResult<Self> {
+    pub fn from_data(parent_common: &CommonArgs, input: &Data) -> SynResult<Self> {
         match input {
             Data::Struct(data_struct) => Ok(Self::Struct(SyntaxFields::from_fields(
-                types,
+                parent_common,
                 &data_struct.fields,
             )?)),
             Data::Enum(data_enum) => Ok(Self::Enum(SyntaxVariants::from_variants(
-                types,
+                parent_common,
                 &data_enum.variants,
             )?)),
             Data::Union(data_union) => syn_err(
@@ -65,26 +65,18 @@ impl ToTokens for SyntaxTypeKind {
 #[derive(Debug, Clone)]
 pub struct SyntaxType<'a> {
     pub args: TypeArgs,
-    // Was previously used for pushing type bounds into where
-    // clause, but that created cyclic trait resolution. I'll
-    // keep the vec around for a short while, in case it ends 
-    // up being useful. After another version or two I expect
-    // I'll drop it.
-    #[allow(unused)]
-    pub types: Vec<&'a Type>,
     pub kind: SyntaxTypeKind,
     pub generics: &'a Generics,
     pub name: &'a Ident,
 }
 
 impl<'a> SyntaxType<'a> {
-    pub fn from_derive_input(types: &mut Vec<&'a Type>, input: &'a DeriveInput) -> SynResult<Self> {
+    pub fn from_derive_input(input: &'a DeriveInput) -> SynResult<Self> {
         let args = TypeArgs::from_attributes(&input.attrs)?;
-        let kind = SyntaxTypeKind::from_data(types, &input.data)?;
+        let kind = SyntaxTypeKind::from_data(&args.args.common, &input.data)?;
 
         Ok(Self {
             args,
-            types: take(types),
             kind,
             generics: &input.generics,
             name: &input.ident,
@@ -177,8 +169,7 @@ impl<'a> ToTokens for SyntaxType<'a> {
         let default_content = Content::Tokens(self.kind.to_token_stream());
 
         let content = if !self.args.skipped() {
-            self.args
-                .to_conditional_tokens(FieldKind::SelfValue, &default_content)
+            self.args.to_conditional_tokens(&default_content)
         } else {
             TokenStream2::new()
         };

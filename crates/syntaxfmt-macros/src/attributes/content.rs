@@ -1,11 +1,15 @@
 use std::fmt::Debug;
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote};
-use syn::{Expr, ExprClosure, Ident, Result as SynResult, TypePath};
+use quote::{quote, ToTokens};
+use syn::{Expr, ExprClosure, Result as SynResult, TypePath};
 
 use crate::{
-    attributes::{args::CommonArgs, seps::PopSeps, eval::Eval, pretty::PopIndentRegion},
+    attributes::{
+        args::CommonArgs,
+        context::{PopContext, PushContext},
+        eval::Eval, pretty::Newlines,
+    },
     syn_err,
 };
 
@@ -29,94 +33,69 @@ pub trait WithConditional {
     fn conditional(&self) -> (&Self::Normal, &Option<Self::Else>);
 }
 
-#[derive(Debug, Clone)]
-pub enum FieldKind {
-    SelfValue,
-    Field(Ident),
-}
-
-impl ToTokens for FieldKind {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            FieldKind::SelfValue => tokens.extend(quote! { self }),
-            FieldKind::Field(ident) => ident.to_tokens(tokens),
-        }
-    }
-}
-
 pub trait ToContentTokens {
-    fn to_content_tokens(&self, field_kind: FieldKind, default_content: &Content) -> TokenStream2;
+    fn to_content_tokens(&self, default_content: &Content) -> TokenStream2;
 }
 
 impl<T> ToContentTokens for T
 where
     T: WithCommon,
 {
-    fn to_content_tokens(&self, field_kind: FieldKind, default_content: &Content) -> TokenStream2 {
+    fn to_content_tokens(&self, default_content: &Content) -> TokenStream2 {
         let common = self.common();
 
         let prefix = &common.prefix;
         let suffix = &common.suffix;
 
-        let (push_seps, pop_seps) = if let Some(seps) = &common.seps {
-            (Some(seps), Some(PopSeps))
-        } else {
-            Default::default()
+        let nl_beg = common.nl.into_beg();
+        let nl_pre = common.nl.into_pre();
+        let nl_cont = common.nl.into_cont();
+        let nl_suf = common.nl.into_suf();
+
+        let push_context = PushContext {
+            sep: common.seps.clone(),
+            indent: common.indent,
+            nl_sep: common.nl.has(Newlines::SEP),
         };
+        let pop_context = PopContext;
 
         let content = common
             .content
             .as_ref()
             .unwrap_or(&default_content)
-            .to_tokens(&field_kind);
+            .to_tokens(&common.field_kind);
 
-        let (push_indent, pop_indent) = if let Some(indent) = &common.indent {
-            (Some(indent), Some(PopIndentRegion))
-        } else {
-            Default::default()
-        };
-
-        let nl_begin = common.nl.into_beg();
-        let nl_prefix = common.nl.into_pre();
-        let nl_content = common.nl.into_cont();
-        let nl_suffix = common.nl.into_suf();
-
-        // Push and pop indent has to be in non-symmetric location
+        // Push and pop context has to be in non-symmetric location
         // This is because indenting is non-symmetric
-        let pre = quote! { #nl_begin #prefix #push_indent #nl_prefix #push_seps };
-        let post = quote! { #pop_seps #pop_indent #nl_content #suffix #nl_suffix };
+        let pre = quote! { #nl_beg #prefix #push_context #nl_pre };
+        let post = quote! { #pop_context #nl_cont #suffix #nl_suf };
 
         quote! { #pre #content #post }
     }
 }
 
 pub trait ToConditionalTokens {
-    fn to_conditional_tokens(
-        &self,
-        field_kind: FieldKind,
-        default_content: &Content,
-    ) -> TokenStream2;
+    fn to_conditional_tokens(&self, default_content: &Content) -> TokenStream2;
 }
 
 impl<T, N, E> ToConditionalTokens for T
 where
     T: WithConditional<Normal = N, Else = E>,
-    N: ToContentTokens + WithEval,
+    N: ToContentTokens + WithCommon + WithEval,
     E: ToContentTokens,
 {
-    fn to_conditional_tokens(
-        &self,
-        field_kind: FieldKind,
-        default_content: &Content,
-    ) -> TokenStream2 {
+    fn to_conditional_tokens(&self, default_content: &Content) -> TokenStream2 {
         let (args, args_else) = self.conditional();
 
-        let content = args.to_content_tokens(field_kind.clone(), default_content);
+        let content = args.to_content_tokens(default_content);
         let content_else = args_else
             .as_ref()
-            .map(|a| a.to_content_tokens(field_kind.clone(), default_content));
+            .map(|a| a.to_content_tokens(default_content));
 
-        let eval = args.eval().as_ref().map(|e| e.to_tokens(&field_kind));
+        let eval = args
+            .eval()
+            .as_ref()
+            .map(|e| e.to_tokens(&args.common().field_kind));
 
         match (eval, content_else) {
             (Some(eval), Some(content_else)) => quote! {

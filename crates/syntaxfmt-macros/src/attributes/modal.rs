@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::ops::{Deref, DerefMut};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
@@ -10,20 +10,6 @@ pub const NUM_MODES: usize = 2;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Strings(pub [String; NUM_MODES]);
-
-impl Index<usize> for Strings {
-    type Output = String;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl IndexMut<usize> for Strings {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
 
 impl Strings {
     #[must_use]
@@ -48,6 +34,20 @@ impl Strings {
             }
         }
         Ok(strs)
+    }
+}
+
+impl Deref for Strings {
+    type Target = [String; NUM_MODES];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Strings {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
