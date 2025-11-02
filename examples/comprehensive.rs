@@ -28,12 +28,10 @@ enum Expr<'src> {
     })]
     Literal(i32),
 
-    #[syntax(pre = "(", suf = ")")]
+    #[syntax(pre = "(", suf = ")", sep = " ")]
     Binary {
-        #[syntax(suf = " ")]
         left: Box<Expr<'src>>,
 
-        #[syntax(suf = " ")]
         op: &'src str,
 
         right: Box<Expr<'src>>,
@@ -48,7 +46,7 @@ enum Expr<'src> {
 struct FunctionCall<'src> {
     name: &'src str,
 
-    #[syntax(pre = "(", suf = ")", sep = [", ", ", "])]
+    #[syntax(pre = "(", suf = ")", sep = ", ")]
     args: Vec<Expr<'src>>,
 }
 
@@ -80,13 +78,13 @@ struct Parameter<'src> {
 
 // Statement with pretty printing
 #[derive(SyntaxFmt)]
-#[syntax(bound = TypeDisplay, nl = beg)]
+#[syntax(bound = TypeDisplay)]
+#[syntax(suf = ";")]
 enum Statement<'src> {
-    #[syntax(pre = "return ", suf = ";", eval = value.is_some())]
-    #[syntax_else(cont = "return;")]
+    #[syntax(pre = "return ", eval = value.is_some())]
+    #[syntax_else(cont = "return")]
     Return { value: Option<Expr<'src>> },
 
-    #[syntax(suf = ";")]
     Expr(Expr<'src>),
 }
 
@@ -94,7 +92,7 @@ enum Statement<'src> {
 #[derive(SyntaxFmt)]
 #[syntax(pre = "{", suf = "}", bound = TypeDisplay)]
 struct Block<'src> {
-    #[syntax(nl = [cont], ind, sep = "")]
+    #[syntax(ind, nl = inner)]
     statements: Vec<Statement<'src>>,
 }
 
@@ -104,7 +102,7 @@ struct Block<'src> {
 struct Function<'src> {
     name: &'src str,
 
-    #[syntax(pre = "(", suf = ")", sep = [", ", ", "])]
+    #[syntax(pre = "(", suf = ")", sep = ", ")]
     params: Vec<Parameter<'src>>,
 
     #[syntax(pre = " -> ", eval = return_type.is_some())]

@@ -8,10 +8,11 @@ use syn::{
 use crate::{
     attributes::{
         content::{Content, Skipped, WithCommon, WithConditional, WithEval},
-        seps::PushSeps,
+        context::FieldKind,
         eval::Eval,
+        modal::Strings,
         prefix_suffix::{Prefix, Suffix},
-        pretty::{Newlines, PushIndentRegion},
+        pretty::Newlines,
         unverified_args::{UnverifiedArg, UnverifiedArgKind, UnverifiedArgs},
     },
     syn_err,
@@ -57,12 +58,13 @@ pub trait TakeArgs: Sized {
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonArgs {
+    pub field_kind: FieldKind,
     pub prefix: Option<Prefix>,
     pub suffix: Option<Suffix>,
-    pub seps: Option<PushSeps>,
     pub content: Option<Content>,
-    pub indent: Option<PushIndentRegion>,
+    pub seps: Strings,
     pub nl: Newlines,
+    pub indent: bool,
 }
 
 impl CommonArgs {
@@ -100,11 +102,11 @@ impl TakeArgs for CommonArgs {
                 match arg.kind {
                     Kind::Prefix(i) => self.prefix = Prefix::from_litstrs(i)?,
                     Kind::Suffix(i) => self.suffix = Suffix::from_litstrs(i)?,
-                    Kind::Seps(i) => self.seps = PushSeps::from_litstrs(i)?,
+                    Kind::Seps(i) => self.seps = Strings::from_litstrs(i)?,
                     Kind::Content(i) => self.content = Content::from_expr(i)?,
                     Kind::ContentTypePath(i) => self.content = Content::from_type_path(i)?,
                     Kind::ContentClosure(i) => self.content = Content::from_closure(i)?,
-                    Kind::Indent(_) => self.indent = Some(PushIndentRegion),
+                    Kind::Indent(_) => self.indent = true,
                     Kind::Newlines(i) => self.nl = Newlines::from_idents(i)?,
                     _ => unreachable!("match_common should have matched all possibilities"),
                 }
@@ -413,9 +415,13 @@ pub struct FieldArgs {
 
 impl FieldArgs {
     #[must_use]
-    pub fn from_attributes(input: &[Attribute]) -> SynResult<Self> {
+    pub fn new(field_kind: FieldKind, _parent_common: &CommonArgs, input: &[Attribute]) -> SynResult<Self> {
         let (mut args, args_else) = UnverifiedArgs::collect_args(input)?;
         let mut field_args = Self::default();
+        field_args.args.common.field_kind = field_kind;
+
+        // If we need to inherit some properties from parents, that would be done here
+
         field_args.args = field_args.args.take_args(&mut args, false)?;
         if let Some(mut args_else) = args_else {
             let have_eval = field_args.args.eval.is_some();

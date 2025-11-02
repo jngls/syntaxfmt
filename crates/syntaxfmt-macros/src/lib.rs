@@ -17,7 +17,7 @@ fn syn_err<T: ToTokens, U: Display, R>(tokens: T, message: U) -> SynResult<R> {
 pub fn derive_syntax_fmt(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let ty = match SyntaxType::from_derive_input(&mut Vec::new(), &input) {
+    let ty = match SyntaxType::from_derive_input(&input) {
         Ok(ty) => ty,
         Err(e) => return e.to_compile_error().into(),
     };

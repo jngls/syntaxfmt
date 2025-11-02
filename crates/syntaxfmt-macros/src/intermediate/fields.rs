@@ -1,13 +1,13 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use syn::{
-    Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Result as SynResult, Type,
+    Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Result as SynResult,
     punctuated::Punctuated, spanned::Spanned, token::Comma,
 };
 
 use crate::attributes::{
-    args::FieldArgs,
-    content::{Content, FieldKind, Skipped, ToConditionalTokens},
+    args::{CommonArgs, FieldArgs},
+    content::{Content, Skipped, ToConditionalTokens}, context::FieldKind,
 };
 
 #[derive(Debug, Clone)]
@@ -17,13 +17,9 @@ pub struct SyntaxFieldNamed {
 }
 
 impl SyntaxFieldNamed {
-    pub fn from_field<'a>(types: &mut Vec<&'a Type>, input: &'a Field) -> SynResult<Self> {
-        let ty = &input.ty;
-        let args = FieldArgs::from_attributes(&input.attrs)?;
+    pub fn from_field(parent_common: &CommonArgs, input: &Field) -> SynResult<Self> {
         let name = input.ident.clone().unwrap();
-        if !args.skipped() {
-            types.push(ty);
-        }
+        let args = FieldArgs::new(FieldKind::Field(name.clone()), parent_common, &input.attrs)?;
         Ok(Self { args, name })
     }
 
@@ -46,7 +42,7 @@ impl ToTokens for SyntaxFieldNamed {
 
         let default_content = Content::Tokens(quote! { #name.syntax_fmt(f)?; });
 
-        let content = self.args.to_conditional_tokens(FieldKind::Field(name.clone()), &default_content);
+        let content = self.args.to_conditional_tokens(&default_content);
 
         tokens.extend(content);
     }
@@ -59,25 +55,16 @@ pub struct SyntaxFieldUnnamed {
 }
 
 impl SyntaxFieldUnnamed {
-    pub fn from_field<'a>(types: &mut Vec<&'a Type>, input: &'a Field) -> SynResult<Self> {
-        let args = FieldArgs::from_attributes(&input.attrs)?;
-        let ty = &input.ty;
-        if !args.skipped() {
-            types.push(ty);
-        };
+    pub fn from_field(parent_common: &CommonArgs, name: Ident, input: &Field) -> SynResult<Self> {
+        let args = FieldArgs::new(FieldKind::Field(name.clone()), parent_common, &input.attrs)?;
         Ok(Self {
             args,
-            name: Ident::new("_", input.ident.span()),
+            name,
         })
     }
 
-    pub fn decl<'a>(&'a self) -> &'a Ident {
+    pub fn decl(&self) -> &Ident {
         &self.name
-    }
-
-    pub fn renamed(mut self, name: Ident) -> SyntaxFieldUnnamed {
-        self.name = name;
-        self
     }
 }
 
@@ -91,7 +78,7 @@ impl ToTokens for SyntaxFieldUnnamed {
 
         let default_content = Content::Tokens(quote! { #name.syntax_fmt(f)?; });
 
-        let content = self.args.to_conditional_tokens(FieldKind::Field(name.clone()), &default_content);
+        let content = self.args.to_conditional_tokens(&default_content);
 
         tokens.extend(content);
     }
@@ -103,10 +90,10 @@ pub struct SyntaxFieldsNamed {
 }
 
 impl SyntaxFieldsNamed {
-    fn from_fields_named<'a>(types: &mut Vec<&'a Type>, input: &'a FieldsNamed) -> SynResult<Self> {
+    fn from_fields_named(parent_common: &CommonArgs, input: &FieldsNamed) -> SynResult<Self> {
         let mut fields = Vec::new();
         for field in &input.named {
-            fields.push(SyntaxFieldNamed::from_field(types, field)?);
+            fields.push(SyntaxFieldNamed::from_field(parent_common, field)?);
         }
         Ok(Self { fields })
     }
@@ -124,7 +111,14 @@ impl SyntaxFieldsNamed {
 
 impl ToTokens for SyntaxFieldsNamed {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let mut i = 0;
         for field in &self.fields {
+            if !field.args.skipped() {
+                if i > 0 {
+                    tokens.extend(quote! { f.write_sep()?; });
+                }
+                i += 1;
+            }
             field.to_tokens(tokens);
         }
     }
@@ -136,14 +130,11 @@ pub struct SyntaxFieldsUnnamed {
 }
 
 impl SyntaxFieldsUnnamed {
-    pub fn from_fields_unnamed<'a>(
-        types: &mut Vec<&'a Type>,
-        input: &'a FieldsUnnamed,
-    ) -> SynResult<Self> {
+    pub fn from_fields_unnamed(parent_common: &CommonArgs, input: &FieldsUnnamed) -> SynResult<Self> {
         let mut fields = Vec::new();
         for (i, field) in input.unnamed.iter().enumerate() {
-            let index = Ident::new(&format!("__{i}"), field.span());
-            fields.push(SyntaxFieldUnnamed::from_field(types, field)?.renamed(index));
+            let name = Ident::new(&format!("_{i}"), field.span());
+            fields.push(SyntaxFieldUnnamed::from_field(parent_common, name, field)?);
         }
         Ok(Self { fields })
     }
@@ -159,7 +150,14 @@ impl SyntaxFieldsUnnamed {
 
 impl ToTokens for SyntaxFieldsUnnamed {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let mut i = 0;
         for field in &self.fields {
+            if !field.args.skipped() {
+                if i > 0 {
+                    tokens.extend(quote! { f.write_sep()?; });
+                }
+                i += 1;
+            }
             field.to_tokens(tokens);
         }
     }
@@ -198,14 +196,14 @@ pub enum SyntaxFields {
 }
 
 impl SyntaxFields {
-    pub fn from_fields<'a>(types: &mut Vec<&'a Type>, input: &'a Fields) -> SynResult<Self> {
+    pub fn from_fields(parent_common: &CommonArgs, input: &Fields) -> SynResult<Self> {
         match &input {
             Fields::Named(fields_named) => Ok(Self::Named(SyntaxFieldsNamed::from_fields_named(
-                types,
+                parent_common,
                 fields_named,
             )?)),
             Fields::Unnamed(fields_unnamed) => Ok(Self::Unnamed(
-                SyntaxFieldsUnnamed::from_fields_unnamed(types, fields_unnamed)?,
+                SyntaxFieldsUnnamed::from_fields_unnamed(parent_common, fields_unnamed)?,
             )),
             Fields::Unit => Ok(Self::Unit),
         }

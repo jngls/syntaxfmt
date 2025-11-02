@@ -13,7 +13,7 @@ A derive macro-based library for flexible syntax tree formatting with pretty pri
 - **Derive Macro** - Automatic implementation via `#[derive(SyntaxFmt)]`
 - **Flexible Decorations** - Add prefixes, suffixes, and collection separators
 - **Modal Formatting** - Customise formatting output for different modes, normal and pretty
-- **Automatic Layout** - Automated layout control with newlines and indentation
+- **Intuitive Layout Options** - Semi-automated layout control with newlines and indentation
 - **Content Replacement** - Override field formatting with literals or custom functions
 - **Conditional Formatting** - Format based on arbitrary boolean expressions, with else support
 - **Stateful Formatting** - Pass mutable or immutable state for context-aware output
@@ -28,7 +28,7 @@ Add `syntaxfmt` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-syntaxfmt = "0.2.2"
+syntaxfmt = "0.3.0"
 ```
 
 ### Quick Start
@@ -99,9 +99,10 @@ More advanced pretty printing is available via [Indentation and Layout](https://
 
 For complete documentation including many more examples, visit [docs.rs/syntaxfmt](https://docs.rs/syntaxfmt).
 
-## Attribute Summary
+## Attribute Argument Summary
 
-Attributes can be applied at the type, field, or `syntax_else` level.
+Each attribute argument may be applied at the type, field, or `syntax_else` level.
+Check the table below to see valid locations for each argument.
 
 | Argument | Description | Valid Location |
 |----------|-------------|----------------|
@@ -112,11 +113,23 @@ Attributes can be applied at the type, field, or `syntax_else` level.
 | `cont_with` | Custom formatter function/closure | field/type/else |
 | `eval` | Conditional expression | field/type |
 | `eval_with` | Conditional function/closure | field/type |
-| `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
+| `nl` | Newline positions (see table below) | field/type/else |
 | `ind` | Increase indent level for field content | field/type/else |
 | `skip` | Omit field from formatting | field/type |
 | `state` | Specify state type (type-level only) | type |
 | `bound` | Add trait bound to state (type-level only) | type |
+
+### Newline (`nl`) Positions
+
+| Position | Description |
+|----------|-------------|
+| `beg` | Beginning (before prefix) |
+| `pre` | After prefix |
+| `sep` | After separator |
+| `cont` | After content |
+| `suf` | After suffix |
+| `inner` | Shorthand for `[pre, sep, cont]` - useful for block inner content |
+| `outer` | Shorthand for `[beg, suf]` - useful for padding |
 
 ## Contributing
 

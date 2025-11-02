@@ -89,7 +89,7 @@ fn test_outer_skip() {
 #[derive(SyntaxFmtDerive)]
 struct WithIndent {
     header: &'static str,
-    #[syntax(ind, nl = [pre, cont])]
+    #[syntax(ind, nl = inner)]
     body: &'static str,
     footer: &'static str,
 }
@@ -106,17 +106,15 @@ fn test_indent_pretty() {
         format!("{}", syntax_fmt(&s).pretty()),
         "indent {\n    foo\n}"
     );
-    //                                                          ^        ^
-    //                                                         pre      cont
 }
 
 #[derive(SyntaxFmtDerive)]
 struct WithNestedIndent {
     header: &'static str,
     // We're using explicit fields here to add header and footer to better isolate tests.
-    // But in practice you could just use: `ind, fmt = "header{*}footer", nl = [pre, cont]`
+    // But in practice you could just use: `ind, nl = inner, pre = "header" suf = "footer"`
     // to add header, footer, and appropriate newlines.
-    #[syntax(ind, nl = [pre, cont])]
+    #[syntax(ind, nl = inner)]
     body: WithIndent,
     footer: &'static str,
 }
@@ -137,9 +135,6 @@ fn test_nested_indent_pretty() {
         format!("{}", syntax_fmt(&s).pretty()),
         "outer {\n    inner {\n        foo\n    }\n}"
     );
-    //                                                         ^            ^            ^      ^
-    //                                                 outer: beg           |            |     cont
-    //                                                 inner:              beg          cont
 }
 
 // We need to force a newline with this one - in practice, newline would come
@@ -342,19 +337,6 @@ fn test_outer_content_modal_slice() {
 struct SepItem(&'static str);
 
 #[derive(SyntaxFmtDerive)]
-struct WithDefaultSep {
-    items: Vec<SepItem>,
-}
-
-#[test]
-fn test_default_sep() {
-    let s = WithDefaultSep {
-        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
-    };
-    assert_eq!(format!("{}", syntax_fmt(&s)), "a,b,c");
-}
-
-#[derive(SyntaxFmtDerive)]
 struct WithSep {
     #[syntax(sep = "|")]
     items: Vec<SepItem>,
@@ -383,18 +365,23 @@ fn test_modal_sep() {
     assert_eq!(format!("{}", syntax_fmt(&s).pretty()), "a: b: c");
 }
 
+// Outer `sep` should insert separators between fields
 #[derive(SyntaxFmtDerive)]
-#[syntax(sep = "|")]
+#[syntax(sep = "+")]
 struct WithOuterSep {
-    items: Vec<SepItem>,
+    item_a: i32,
+    item_b: &'static str,
+    item_c: bool,
 }
 
 #[test]
 fn test_outer_sep() {
     let s = WithOuterSep {
-        items: vec![SepItem("a"), SepItem("b"), SepItem("c")],
+        item_a: 42,
+        item_b: "foo",
+        item_c: true,
     };
-    assert_eq!(format!("{}", syntax_fmt(&s)), "a|b|c");
+    assert_eq!(format!("{}", syntax_fmt(&s)), "42+foo+true");
 }
 
 // =============================================================================
@@ -958,3 +945,8 @@ macro_rules! impl_in_macro {
     };
 }
 impl_in_macro!(InMacro);
+
+#[test]
+fn test_in_macro() {
+    let _ = format!("{}", syntax_fmt(&InMacro(123)));
+}
