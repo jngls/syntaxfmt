@@ -9,7 +9,7 @@
 //! - **Derive Macro** - Automatic implementation via `#[derive(SyntaxFmt)]`
 //! - **Flexible Decorations** - Add prefixes, suffixes, and collection separators
 //! - **Modal Formatting** - Customise formatting output for different modes, normal and pretty
-//! - **Automatic Layout** - Automated layout control with newlines and indentation
+//! - **Intuitive Layout Options** - Semi-automated layout control with newlines and indentation
 //! - **Content Replacement** - Override field formatting with literals or custom functions
 //! - **Conditional Formatting** - Format based on arbitrary boolean expressions, with else support
 //! - **Stateful Formatting** - Pass mutable or immutable state for context-aware output
@@ -27,10 +27,10 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct BinaryOp<'src> {
-//!     left: &'src str,
-//!     op: &'src str,
-//!     right: &'src str,
+//! struct BinaryOp {
+//!     left: &'static str,
+//!     op: &'static str,
+//!     right: &'static str,
 //! }
 //!
 //! let expr = BinaryOp { left: "x", op: "+", right: "y" };
@@ -49,41 +49,56 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! #[syntax(pre = "let ", suf = ";")]
-//! struct LetStatement<'src> {
-//!     name: &'src str,
+//! struct LetStatement {
+//!     name: &'static str,
 //!
 //!     #[syntax(pre = " = ")]
-//!     value: &'src str,
+//!     value: &'static str,
 //! }
 //!
 //! let stmt = LetStatement { name: "x", value: "42" };
 //! assert_eq!(format!("{}", syntax_fmt(&stmt)), "let x = 42;");
 //! ```
 //!
-//! # Collections and Separators
+//! # Separators
 //!
-//! Collections (`Vec<T>`, `&[T]`, `[T; N]`) are formatted automatically with customizable
-//! separators. The default separator is `,` for normal mode and `, ` for pretty mode.
+//! By default, separators are empty. Use the `sep` attribute to specify custom
+//! separators between fields or collection elements.
 //!
-//! The `sep` attribute argument can be applied at field, type, or `syntax_else` level.
+//! When applied at the type or variant level, `sep` inserts separators between fields:
 //!
 //! ```
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Ident<'src>(&'src str);
+//! #[syntax(sep = ", ")]
+//! struct Point {
+//!     x: i32,
+//!     y: i32,
+//! }
+//!
+//! let point = Point { x: 10, y: 20 };
+//! assert_eq!(format!("{}", syntax_fmt(&point)), "10, 20");
+//! ```
+//!
+//! When applied at the field level, `sep` inserts separators between collection elements:
+//!
+//! ```
+//! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Path<'src> {
+//! struct Path {
 //!     #[syntax(sep = "::")]
-//!     segments: Vec<Ident<'src>>,
+//!     segments: Vec<&'static str>,
 //! }
 //!
 //! let path = Path {
-//!     segments: vec![Ident("std"), Ident("collections"), Ident("HashMap")],
+//!     segments: vec!["std", "collections", "HashMap"],
 //! };
 //! assert_eq!(format!("{}", syntax_fmt(&path)), "std::collections::HashMap");
 //! ```
+//!
+//! The `sep` attribute argument can be applied at field, type, or `syntax_else` level.
 //!
 //! # Skip Types and Fields
 //!
@@ -95,8 +110,8 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Node<'src> {
-//!     value: &'src str,
+//! struct Node {
+//!     value: &'static str,
 //!
 //!     #[syntax(skip)]
 //!     metadata: u32,
@@ -106,7 +121,7 @@
 //! assert_eq!(format!("{}", syntax_fmt(&node)), "data");
 //! ```
 //!
-//! # Pretty Mode
+//! # Basic Pretty Printing
 //!
 //! Enable pretty printing with the `.pretty()` builder method. Use modal attributes
 //! (arrays with two values) to specify different formatting for normal vs pretty mode.
@@ -118,11 +133,11 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct FunctionCall<'src> {
-//!     name: &'src str,
+//! struct FunctionCall {
+//!     name: &'static str,
 //!
-//!     #[syntax(pre = ["(", "( "], suf = [")", " )"], sep = [", ", ",  "])]
-//!     args: Vec<&'src str>,
+//!     #[syntax(pre = ["(", "( "], suf = [")", " )"], sep = [",", ", "])]
+//!     args: Vec<&'static str>,
 //! }
 //!
 //! let call = FunctionCall {
@@ -130,23 +145,29 @@
 //!     args: vec!["x", "y", "z"],
 //! };
 //!
-//! assert_eq!(format!("{}", syntax_fmt(&call)), "max(x, y, z)");
-//! assert_eq!(format!("{}", syntax_fmt(&call).pretty()), "max( x,  y,  z )");
+//! assert_eq!(format!("{}", syntax_fmt(&call)), "max(x,y,z)");
+//! assert_eq!(format!("{}", syntax_fmt(&call).pretty()), "max( x, y, z )");
 //! ```
 //!
 //! # Indentation and Layout
 //!
 //! Use `ind` (indent) to increase the indentation level for a field's content. Use `nl` to
-//! control newline positions:
-//! 
-//! - `beg` - beginning
-//! - `pre` - after prefix
-//! - `cont` - after content
-//! - `suf` - after suffix
-//! 
-//! Newlines default to `""` (normal) and `"\n"`` (pretty), and you can alter them with the
+//! control newline positions. The `nl` attribute accepts individual position identifiers or
+//! convenience shorthands:
+//!
+//! | Position | Description |
+//! |----------|-------------|
+//! | `beg` | Beginning (before prefix) |
+//! | `pre` | After prefix |
+//! | `sep` | After separator |
+//! | `cont` | After content |
+//! | `suf` | After suffix |
+//! | `inner` | Shorthand for `[pre, sep, cont]` - useful for block inner content |
+//! | `outer` | Shorthand for `[beg, suf]` - useful for padding |
+//!
+//! Newlines default to `""` (normal) and `"\n"` (pretty), and you can alter them with the
 //! `.newline(["", "\r\n"])` builder method.
-//! 
+//!
 //! Indentation segments default to `""` (normal) and `"    "` (pretty), and you can
 //! alter them with the `.indent(["", "\t"])` builder method.
 //!
@@ -157,15 +178,15 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Statement<'src> {
-//!     #[syntax(suf = ";")]
-//!     code: &'src str,
+//! #[syntax(suf = ";")]
+//! struct Statement {
+//!     code: &'static str,
 //! }
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Block<'src> {
-//!     #[syntax(pre = "{", suf = "}", nl = [pre, cont], ind, sep = "")]
-//!     statements: Vec<Statement<'src>>,
+//! struct Block {
+//!     #[syntax(ind, nl = inner, pre = "{", suf = "}")]
+//!     statements: Vec<Statement>,
 //! }
 //!
 //! let block = Block {
@@ -228,9 +249,9 @@
 //! }
 //!
 //! #[derive(SyntaxFmt)]
-//! struct StringLiteral<'src> {
+//! struct StringLiteral {
 //!     #[syntax(cont_with = quote_formatter)]
-//!     value: &'src str,
+//!     value: &'static str,
 //! }
 //!
 //! let lit = StringLiteral { value: "hello" };
@@ -263,8 +284,8 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! #[syntax(pre = "const ", suf = ";")]
-//! struct ConstDecl<'src> {
-//!     name: &'src str,
+//! struct ConstDecl {
+//!     name: &'static str,
 //!
 //!     #[syntax(pre = " = ", eval = *value > 100)]
 //!     value: u32,
@@ -289,9 +310,9 @@
 //! }
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Comment<'src> {
+//! struct Comment {
 //!     #[syntax(pre = "// ", eval_with = is_long)]
-//!     text: &'src str,
+//!     text: &'static str,
 //! }
 //!
 //! let short = Comment { text: "ok" };
@@ -307,9 +328,9 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! struct Tagged<'src> {
+//! struct Tagged {
 //!     #[syntax(pre = "#[", suf = "]", eval_with = |s: &str| s.starts_with("derive"))]
-//!     tag: &'src str,
+//!     tag: &'static str,
 //! }
 //!
 //! let other = Tagged { tag: "allow(dead_code)" };
@@ -325,16 +346,19 @@
 //! use syntaxfmt::{SyntaxFmt, syntax_fmt};
 //!
 //! #[derive(SyntaxFmt)]
-//! #[syntax(pre = "return ")]
-//! struct Return<'src> {
-//!     value: Option<&'src str>,
+//! #[syntax(suf = ";")]
+//! struct Module {
+//!     vis: Option<&'static str>,
+//! 
+//!     #[syntax(pre = "mod ")]
+//!     name: &'static str,
 //! }
 //!
-//! let with_value = Return { value: Some("42") };
-//! assert_eq!(format!("{}", syntax_fmt(&with_value)), "return 42");
-//!
-//! let without = Return { value: None };
-//! assert_eq!(format!("{}", syntax_fmt(&without)), "return ");
+//! let without_vis = Module { vis: None, name: "a" };
+//! assert_eq!(format!("{}", syntax_fmt(&without_vis)), "mod a;");
+//! 
+//! let with_vis = Module { vis: Some("pub "), name: "b" };
+//! assert_eq!(format!("{}", syntax_fmt(&with_vis)), "pub mod b;");
 //! ```
 //!
 //! When `Option<T>` fields have decorations, use `eval` or `eval_with` to
@@ -345,21 +369,21 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! #[syntax(pre = "let ", suf = ";")]
-//! struct VarDecl<'src> {
-//!     name: &'src str,
+//! struct VarDecl {
+//!     name: &'static str,
 //!
 //!     #[syntax(pre = ": ", eval = ty.is_some())]
-//!     ty: Option<&'src str>,
+//!     ty: Option<&'static str>,
 //!
 //!     #[syntax(pre = " = ", eval = value.is_some())]
-//!     value: Option<&'src str>,
+//!     value: Option<&'static str>,
 //! }
 //!
-//! let untyped = VarDecl { name: "x", ty: None, value: Some("42") };
-//! assert_eq!(format!("{}", syntax_fmt(&untyped)), "let x = 42;");
+//! let value_only = VarDecl { name: "x", ty: None, value: Some("42") };
+//! assert_eq!(format!("{}", syntax_fmt(&value_only)), "let x = 42;");
 //!
-//! let typed = VarDecl { name: "y", ty: Some("i32"), value: None };
-//! assert_eq!(format!("{}", syntax_fmt(&typed)), "let y: i32;");
+//! let type_only = VarDecl { name: "y", ty: Some("i32"), value: None };
+//! assert_eq!(format!("{}", syntax_fmt(&type_only)), "let y: i32;");
 //! ```
 //!
 //! # Fallback Formatting
@@ -416,9 +440,9 @@
 //!
 //! #[derive(SyntaxFmt)]
 //! #[syntax(bound = SymbolResolver)]
-//! struct Identifier<'src> {
+//! struct Identifier {
 //!     #[syntax(cont_with = resolve_name)]
-//!     name: &'src str,
+//!     name: &'static str,
 //! }
 //!
 //! let resolver = MyResolver;
@@ -442,9 +466,10 @@
 //!
 //! # Reference
 //!
-//! ## Attribute Summary
+//! ## Attribute Argument Summary
 //!
-//! Attributes can be applied at the type, field, or `syntax_else` level.
+//! Each attribute argument may be applied at the type, field, or `syntax_else` level.
+//! Check the table below to see valid locations for each argument.
 //!
 //! | Argument | Description | Valid Location |
 //! |----------|-------------|----------------|
@@ -455,11 +480,29 @@
 //! | `cont_with` | Custom formatter function/closure | field/type/else |
 //! | `eval` | Conditional expression | field/type |
 //! | `eval_with` | Conditional function/closure | field/type |
-//! | `nl` | Newline positions (`beg`, `pre`, `cont`, `suf`) | field/type/else |
+//! | `nl` | Newline positions (see table below) | field/type/else |
 //! | `ind` | Increase indent level for field content | field/type/else |
 //! | `skip` | Omit field from formatting | field/type |
 //! | `state` | Specify state type (type-level only) | type |
 //! | `bound` | Add trait bound to state (type-level only) | type |
+//!
+//! ### Newline (`nl`) Positions
+//!
+//! | Position | Description |
+//! |----------|-------------|
+//! | `beg` | Beginning (before prefix) |
+//! | `pre` | After prefix |
+//! | `sep` | After separator |
+//! | `cont` | After content |
+//! | `suf` | After suffix |
+//! | `inner` | Shorthand for `[pre, sep, cont]` - useful for block inner content |
+//! | `outer` | Shorthand for `[beg, suf]` - useful for padding |
+//!
+//! ## Attribute Scope
+//!
+//! Attributes only apply to the specific type, field, or variant they are declared on.
+//! They do not propagate to child types or fields. Each type must specify its own
+//! formatting attributes.
 //!
 //! ## Modal Attributes
 //!
@@ -641,9 +684,9 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///
     /// #[derive(SyntaxFmt)]
     /// #[syntax(bound = SymbolResolver)]
-    /// struct Identifier<'src> {
+    /// struct Identifier {
     ///     #[syntax(cont_with = resolve_name)]
-    ///     name: &'src str,
+    ///     name: &'static str,
     /// }
     ///
     /// let resolver = MyResolver;
@@ -679,11 +722,11 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///     }
     /// }
     ///
-    /// struct VarDecl<'src> {
-    ///     name: &'src str,
+    /// struct VarDecl {
+    ///     name: &'static str,
     /// }
     ///
-    /// impl<'src> SyntaxFmt<IdGenerator> for VarDecl<'src> {
+    /// impl SyntaxFmt<IdGenerator> for VarDecl {
     ///     fn syntax_fmt(&self, f: &mut SyntaxFormatter<IdGenerator>) -> std::fmt::Result {
     ///         let id = f.state_mut().next();
     ///         write!(f, "let {}_{}", self.name, id)
@@ -740,9 +783,9 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///
     /// #[derive(SyntaxFmt)]
     /// #[syntax(bound = Counter)]
-    /// struct Item<'src> {
+    /// struct Item {
     ///     #[syntax(cont_with = format_with_count)]
-    ///     name: &'src str,
+    ///     name: &'static str,
     /// }
     ///
     /// let counter = IdCounter { value: 42 };
@@ -801,9 +844,9 @@ impl<'sr, 's, 'f, 'w, S> SyntaxFormatter<'sr, 's, 'f, 'w, S> {
     ///
     /// #[derive(SyntaxFmt)]
     /// #[syntax(bound = Counter)]
-    /// struct Node<'src> {
+    /// struct Node {
     ///     #[syntax(cont_with = format_with_id)]
-    ///     name: &'src str,
+    ///     name: &'static str,
     /// }
     ///
     /// let mut counter = IdCounter { count: 0 };
@@ -979,9 +1022,9 @@ where
 /// use syntaxfmt::{SyntaxFmt, syntax_fmt};
 ///
 /// #[derive(SyntaxFmt)]
-/// struct Expr<'src> {
+/// struct Expr {
 ///     #[syntax(pre = ["(", "( "], suf = [")", " )"])]
-///     value: &'src str,
+///     value: &'static str,
 /// }
 ///
 /// let expr = Expr { value: "42" };
